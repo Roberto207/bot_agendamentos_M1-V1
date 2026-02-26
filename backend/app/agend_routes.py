@@ -63,5 +63,28 @@ async def cancelar_agendamento(telefone: str,db: Session = Depends(get_db)): #,_
         }
     print('bolas') 
 #rota de concluir horario agendado
+@agendamentos_router.post("/concluir_agendamento")
+async def concluir_agendamento(telefone: str,db: Session = Depends(get_db)):
+    agendamento = db.query(Agendamento).filter(Agendamento.telefone == telefone).order_by(Agendamento.id.desc()).first()
+    if not agendamento:
+        raise HTTPException(status_code=400,detail="agendamento nao encontrado")
+    if agendamento.status in [StatusAgendamento.concluido, StatusAgendamento.cancelado]:
+        raise HTTPException(status_code=400,detail=f"agendamento ja foi cancelado ou concluido")
+    else:
+        agendamento.status = StatusAgendamento.concluido
+        db.commit()
+        db.refresh(agendamento)
+        return {
+            "mensagem:": "agendamento concluido com sucesso",
+            "agendamento": {
+                "id": agendamento.id,
+                "nome": agendamento.nome,
+                "telefone": agendamento.telefone,
+                "data_servico": agendamento.data_servico,
+                "hora_inicio": agendamento.hora_inicio,
+                "hora_fim": agendamento.hora_fim,
+                "status": agendamento.status
+            }
+        }
 
 #rota de mostrar todos os horarios disponiveis

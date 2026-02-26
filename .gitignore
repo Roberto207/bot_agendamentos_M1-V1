@@ -1,1 +1,3 @@
-backend.querys/
+alembic.ini
+env.py
+backend/querys/

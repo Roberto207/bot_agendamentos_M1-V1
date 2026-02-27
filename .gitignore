@@ -1,4 +1,3 @@
 alembic.ini
-env.py
 backend/querys
 .env

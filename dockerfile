@@ -24,4 +24,4 @@ CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 #docker build -t nome-da-imagem .
 
-#docker run -d -p 8000:8000 nome-da-imagem
+#docker run -it -p 8000:8000 api-padrao-agendamentos

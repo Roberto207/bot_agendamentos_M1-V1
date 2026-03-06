@@ -1,0 +1,34 @@
+arquivo so pra lemnbrar do docker-compose.yaml que tera uma estrutura mais ou menos assim: 
+version: "3.9"
+services:
+  backend:  #backend: → nome do serviço (usado no compose)
+    build: .     #Pasta onde está o Dockerfile do backend
+    container_name: backend
+    ports:
+      - "8000:8000"
+    environment: #definindo as variaveis do ambiente
+      - DATABASE_URL=${DATABASE_URL}
+      - API_KEY=${API_KEY}
+
+  n8n:
+    build: ./n8n       # Pasta onde está o Dockerfile do backend   # ou image: n8nio/n8n 
+    container_name: n8n #definindo nome do container
+    ports:
+      - "5678:5678"
+    environment: #definindo as variaveis do ambiente
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
+      - GENERIC_TIMEZONE=America/Sao_Paulo
+# Supabase é remoto, não entra no compose
+#${VARIAVEL} → pega direto do .env
+#informacoes a se ter no env:
+#DATABASE_URL=postgres://usuario:senha@db.supabase.co:5432/agendamentos
+#N8N_USER=usuario
+#N8N_PASSWORD=senha
+
+#docker-compose.yml vai pro repositório (sem gitignore).
+#Para rodar com docker-compose up --build, não precisa das imagens prontas, ele builda as imagens 
+#automaticamente a partir dos Dockerfiles.
+
+docker-compose up -d --build = pra rodar tudo

@@ -1,0 +1,1 @@
+Cliente WhatsApp → n8n → Backend (validação + banco) → n8n → Google Calendar

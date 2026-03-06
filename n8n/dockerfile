@@ -1,0 +1,19 @@
+#esse arquivo so pra lembrar que o bot n8n tbm precisara de um dockerfile,mais ou menos configurado assim
+
+# n8n/Dockerfile
+FROM n8nio/n8n:latest
+
+ENV N8N_PORT=5678
+ENV N8N_HOST=0.0.0.0
+ENV N8N_PROTOCOL=http
+ENV NODE_ENV=production
+
+EXPOSE 5678
+
+#comando pra isntalar a imagem logo pelo terminal (nao precisa de dockerfile pq a imagem ja existe)
+# docker run -it -p 5678:5678 \
+#   -e N8N_BASIC_AUTH_ACTIVE=true \
+#   -e N8N_BASIC_AUTH_USER=admin \
+#   -e N8N_BASIC_AUTH_PASSWORD=admin123 \
+#   -v n8n_test_data:/home/node/.n8n \
+#   n8nio/n8n

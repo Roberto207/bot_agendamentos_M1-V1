@@ -165,3 +165,24 @@ async def horarios_disponiveis(
         "data_servico": data_servico,
         "horarios_disponiveis": horarios_disponiveis
     }
+
+
+
+@agendamentos_router.get("/seus_agendamentos")
+async def seus_agendamentos(telefone: str, db: Session = Depends(get_db)):
+    agendamentos = db.query(Agendamento).filter(Agendamento.telefone == telefone).order_by(Agendamento.data_servico.desc(), Agendamento.hora_inicio.desc()).limit(5).all()
+    return {
+        "agendamentos": [
+            {
+                "id": agendamento.id,
+                "nome": agendamento.nome,
+                "telefone": agendamento.telefone,
+                "tipo_servico": agendamento.tipos_servico,
+                "data_servico": agendamento.data_servico,
+                "hora_inicio": agendamento.hora_inicio,
+                "hora_fim": agendamento.hora_fim,
+                "status": agendamento.status
+            }
+            for agendamento in agendamentos
+        ]
+    }

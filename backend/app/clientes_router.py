@@ -7,7 +7,7 @@ from datetime import datetime,timedelta, timezone #usado pra definir tempo de ex
 from sqlalchemy.orm import Session #usado pra criar a sessao do banco de dados
 from fastapi.security import OAuth2PasswordRequestForm #usado pra definir o esquema de autenticacao do tipo oauth2 com senha e bearer token
 from .models import Cliente,Empresa
-from .schemas import Cliente_Create,Origem_Cliente
+from .schemas import Cliente_Create,Origem_Cliente,LoginSchema
 
 def criar_token(usuario_id,duracao_token = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)):
     data_expiracao = datetime.now(timezone.utc) + duracao_token # data_expiracao = momento em q o token foi criado + tempo definido na variavel acess token...
@@ -17,8 +17,8 @@ def criar_token(usuario_id,duracao_token = timedelta(minutes=ACCESS_TOKEN_EXPIRE
     jwt_codificado = jwt.encode(dicionario_infos,SECRET_KEY,algorithm=ALGORITMH) #a funcao q cria jwts,pede o dicionario com o q sera codificado,a chave de codificacao (secret_key) e o algoritmo de codificacao. tudo isso ja foi criado no env e armazenado no arquivo main
     return jwt_codificado
 
-def autentificar_cliente(telefone,senha,session):
-    cliente = session.query(Cliente).filter(Cliente.telefone==telefone).first() #vendo se o telefone inserido pelo cliente esta na database
+def autentificar_cliente(email,senha,session):
+    cliente = session.query(Cliente).filter(Cliente.email==email).first() #vendo se o telefone inserido pelo cliente esta na database
     if not cliente:
         return False
     elif not bcrypt_context.verify(senha,cliente.senha): #verifica se a senha colocada no login é igual a senha descriptografada presente na database
@@ -68,3 +68,28 @@ async def cadastrar_cliente(cliente : Cliente_Create,db : Session = Depends(get_
     db.commit()
     db.refresh(novo_cliente)
     return {"mensagem": "Cliente cadastrado com sucesso",}
+
+
+@clientes_auth_router.post('/login')
+#versao login sem dados formulario que é algo opcional pra termos permissao nas docs do fastapi mas o frontend funciona perfeitamente sem o parametro dados_formulario
+async def login(loginschema : LoginSchema ,db: Session = Depends(get_db)):
+    """
+    Essa rota é usada para autentificar um usuario ja cadastrado no sistema,ela recebe um objeto do tipo LoginSchema com o
+    email e senha do usuario,verifica se as credenciais estao corretas e se estiverem,gera um token JWT de acesso e um 
+    token de refresh (opcional) e retorna ambos os tokens para o usuario
+    """
+    
+    
+    cliente = autentificar_cliente(email=loginschema.email,senha=loginschema.senha,session=db) #aplicando a funcao 
+    
+    if not cliente:
+        raise HTTPException(status_code=400,detail="email nao encontrado no sistema ou credenciais invalidas")
+    else:
+        access_token = criar_token(cliente.id)
+        refresh_token = criar_token(cliente.id,duracao_token= timedelta(days=7)) #token secundario usado qnd o access token expira pra dar mais tempo ao usaurio e ele n preicsar fazer o login novamente. esse token é opcional
+        return {
+            "mensagem": "login feito com sucesso",
+            "access_token ": access_token,
+            "refresh_token":refresh_token,
+            "token_type" : "Bearer"
+        }

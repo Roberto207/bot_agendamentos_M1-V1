@@ -67,7 +67,7 @@ class AgendamentoResponse(BaseModel):
     mensagem: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class Cliente_Create(BaseModel):
     nome : str
@@ -76,3 +76,10 @@ class Cliente_Create(BaseModel):
     email : str
     admin : bool = False
     ativo : bool = True
+
+class LoginSchema(BaseModel):
+    email : str
+    senha : str
+
+    class Config:
+        from_attributes = True

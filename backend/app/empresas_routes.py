@@ -1,0 +1,26 @@
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.orm import Session
+from .database import SessionLocal
+from .dependencies import get_db,verificar_api_key,verificar_api_key_empresa_create
+from .schemas import EmpresaCreate
+from .models import Empresa
+
+empresas_router = APIRouter(prefix="/empresa", tags=["Empresa"])
+
+@empresas_router.post("/cadastrar_empresa")
+async def cadastrar_empresa(empresa: EmpresaCreate , db: Session = Depends(get_db),autorizado: bool = Depends(verificar_api_key_empresa_create),):
+    nova_empresa = Empresa(
+        nome=empresa.nome,
+        cnpj=empresa.cnpj,
+        email=empresa.email,
+        telefone=empresa.telefone,
+        horario_inicio=empresa.horario_inicio,
+        horario_fim=empresa.horario_fim,
+        dias_atendimento=empresa.dias_atendimento,
+        ramo_empresa=empresa.ramo_empresa
+    )
+    db.add(nova_empresa)
+    db.commit()
+    db.refresh(nova_empresa)
+    return {"id": nova_empresa.id, "nome": nova_empresa.nome}

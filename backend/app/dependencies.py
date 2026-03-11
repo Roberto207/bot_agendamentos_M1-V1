@@ -1,25 +1,34 @@
 from sqlalchemy.orm import Session
-from .models import Agendamento,Empresa
+from .models import Agendamento,Empresa,Cliente
 from .schemas import AgendamentoCreate
 from sqlalchemy.exc import IntegrityError, InternalError
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials,OAuth2PasswordBearer
 from .database import SessionLocal
 from fastapi import FastAPI, Depends, HTTPException, Header, Security,APIRouter
 import os
 from dotenv import load_dotenv
-
+#from .main import ALGORITMH,ACCESS_TOKEN_EXPIRE_MINUTES,oauth2_schema
 
 
 load_dotenv()
 API_KEY = os.getenv("SECRET_KEY")
-async def criar_agendamento(db: Session, agendamento: AgendamentoCreate,empresa: Empresa):
+load_dotenv()
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITMH")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))
+
+oauth2_schema = OAuth2PasswordBearer(tokenUrl="/auth/login_formula")
+
+async def criar_agendamento(db: Session, agendamento: AgendamentoCreate, empresa: Empresa):
     novo = Agendamento(
     empresa_id=empresa.id,
-    nome=agendamento.nome,
-    telefone=agendamento.telefone,
+    nome_cliente=agendamento.nome_cliente,
+    telefone_cliente=agendamento.telefone_cliente,
     data_servico=agendamento.data_servico,
     hora_inicio=agendamento.hora_inicio,
     hora_fim=agendamento.hora_fim,
+    cliente_id = db.query(Cliente).filter(Cliente.telefone == agendamento.telefone_cliente).first().id,
     tipos_servico=agendamento.tipos_servico
 )
 
@@ -45,6 +54,29 @@ def get_db():
         db.close()
 
 security = HTTPBearer()
+
+def verificar_token(token: str = Depends(oauth2_schema),db: Session = Depends(get_db)):
+
+    try:
+        dict_info = jwt.decode(token,SECRET_KEY,algorithms=[ALGORITMH])
+        
+
+        id_cliente = int(dict_info.get("sub"))
+        if not id_cliente:
+            raise HTTPException(status_code=401, detail="Token sem sub = ids")
+    except JWTError as erro:
+        print(erro)
+        raise HTTPException(status_code=401,detail="acesso negado,verifique a validade do token")
+        
+
+    #verificar se o token é valido
+    #extrair o id do usuario do token 
+    cliente = db.query(Cliente).filter(Cliente.id==id_cliente).first()
+    if not cliente:
+        raise HTTPException(status_code=401,detail="acesso invalido")
+    return cliente
+
+
 
 # Dependência simples de autenticação
 async def verificar_api_key(

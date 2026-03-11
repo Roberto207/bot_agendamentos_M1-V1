@@ -1,6 +1,7 @@
 from pydantic import BaseModel,field_validator
 from datetime import date, time
 from enum import Enum
+from typing import List
 
 
 class StatusAgendamento(str, Enum):
@@ -8,6 +9,20 @@ class StatusAgendamento(str, Enum):
     cancelado = "cancelado"
     concluido = "concluido"
 
+import enum
+
+class DiasAtendimento(str, enum.Enum):
+    segunda = "segunda"
+    terca = "terca"
+    quarta = "quarta"
+    quinta = "quinta"
+    sexta = "sexta"
+    sabado = "sabado"
+    domingo = "domingo"
+
+class Origem_Cliente(str, Enum):
+    whatsapp = "WhatsApp"
+    site = "Site"
 
 class TipoServico(str, Enum):
     corte_cabelo = "corte_cabelo"
@@ -15,19 +30,23 @@ class TipoServico(str, Enum):
     manicure = "manicure"
     maquiagem = "maquiagem"
 
+class HorarioFuncionamentoCreate(BaseModel):
+    dia_semana: DiasAtendimento
+    horario_inicio: time
+    horario_fim: time
+
 class EmpresaCreate(BaseModel):
     nome: str
     cnpj: str
     email: str
     telefone: str
-    horario_inicio: time
-    horario_fim: time
-    dias_atendimento: str
     ramo_empresa: str
+    horarios: List[HorarioFuncionamentoCreate]
+    
 
 class AgendamentoCreate(BaseModel):
-    nome: str
-    telefone: str
+    nome_cliente: str
+    telefone_cliente: str
     data_servico: date
     hora_inicio: time
     hora_fim: time
@@ -49,3 +68,6 @@ class AgendamentoResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+class Cliente_Create(Basemodel):
+    

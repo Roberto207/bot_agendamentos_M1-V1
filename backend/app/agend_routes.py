@@ -4,8 +4,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from .database import SessionLocal
 from .dependencies import criar_agendamento,get_db,verificar_api_key
-from .schemas import AgendamentoCreate,StatusAgendamento
-from .models import Agendamento,Empresa
+from .schemas import AgendamentoCreate,StatusAgendamento,DiasAtendimento
+from .models import Agendamento,Empresa,HorarioFuncionamento
 import os
 from dotenv import load_dotenv
 from sqlalchemy import func
@@ -23,9 +23,17 @@ data_maxima_agendamento = date.today() + timedelta(days=30)
 load_dotenv()
 API_KEY = os.getenv("SECRET_KEY")
 
-agendamentos_router = APIRouter(prefix='/agendamentos',tags=['Agendamentos'])
+agendamentos_router = APIRouter(prefix='/agendamentos_whatssap',tags=['Agendamentos_Whatssap'])
 #@agendamentos_router.get('/')
-
+dias_map = {
+    0: DiasAtendimento.segunda,
+    1: DiasAtendimento.terca,
+    2: DiasAtendimento.quarta,
+    3: DiasAtendimento.quinta,
+    4: DiasAtendimento.sexta,
+    5: DiasAtendimento.sabado,
+    6: DiasAtendimento.domingo
+}
 
 # Endpoint para criar agendamento
 @agendamentos_router.post("/criar_agendamento")
@@ -34,30 +42,46 @@ async def criar_agendamento_endpoint(
     db: Session = Depends(get_db),
     empresa: Empresa = Depends(verificar_api_key)
 ):
-    inicio_atendimento = empresa.horario_inicio
-    fim_atendimento = empresa.horario_fim
+    # inicio_atendimento = empresa.horario_inicio
+    # fim_atendimento = empresa.horario_fim
 
     hora_inicio = agendamento.hora_inicio
     hora_fim = agendamento.hora_fim
 
+    
+    dia = dias_map[agendamento.data_servico.weekday()]
+
+    horario_dia = db.query(HorarioFuncionamento).filter(
+        HorarioFuncionamento.empresa_id == empresa.id,
+        HorarioFuncionamento.dia_semana == dia
+    ).first()
+
     # remover timezone se existir
-    if inicio_atendimento.tzinfo:
-        inicio_atendimento = inicio_atendimento.replace(tzinfo=None)
-
-    if fim_atendimento.tzinfo:
-        fim_atendimento = fim_atendimento.replace(tzinfo=None)
-
+    # if horario_dia.horario_inicio.tzinfo:
+    #     horario_dia.horario_inicio = horario_dia.horario_inicio.replace(tzinfo=None)
+    # if horario_dia.horario_fim.tzinfo:
+    #     horario_dia.horario_fim = horario_dia.horario_fim.replace(tzinfo=None)
+    
     if hora_inicio.tzinfo:
         hora_inicio = hora_inicio.replace(tzinfo=None)
-
     if hora_fim.tzinfo:
         hora_fim = hora_fim.replace(tzinfo=None)
 
-    if agendamento.hora_inicio < inicio_atendimento or agendamento.hora_fim > fim_atendimento:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Horario de atendimento é das {inicio_atendimento} às {fim_atendimento}"
-        )
+    if not horario_dia:
+        raise HTTPException(400, "Empresa não atende nesse dia")
+
+    if agendamento.hora_inicio < horario_dia.horario_inicio or agendamento.hora_fim > horario_dia.horario_fim:
+        raise HTTPException(400, f"Fora do horário de atendimento,Horario de atendimento nesse dia é das {horario_dia.horario_inicio} as {horario_dia.horario_fim}")
+
+    
+
+    
+
+    # if agendamento.hora_inicio < inicio_atendimento or agendamento.hora_fim > fim_atendimento:
+    #     raise HTTPException(
+    #         status_code=400,
+    #         detail=f"Horario de atendimento é das {inicio_atendimento} às {fim_atendimento}"
+    #     )
 
     if agendamento.data_servico > data_maxima_agendamento:
         raise HTTPException(status_code=400, detail=f"Data do serviço {agendamento.data_servico} nao pode ser maior do que 30 dias a partir da data atual {date.today()}, data máxima permitida é {date.today() + timedelta(days=30)}")
@@ -69,7 +93,7 @@ async def criar_agendamento_endpoint(
         raise HTTPException(status_code=400, detail=f"Horario do serviço {agendamento.hora_inicio} nao pode ser menor do que o horario atual {datetime.now().time()}")
     
     
-
+        
     
     
     #timedelta oq é 
@@ -80,7 +104,7 @@ async def criar_agendamento_endpoint(
 
 @agendamentos_router.post("/cancelar_agendamento")
 async def cancelar_agendamento(telefone: str,db: Session = Depends(get_db),empresa: Empresa = Depends(verificar_api_key)): #,_: None = Depends(verificar_api_key)
-    agendamento = db.query(Agendamento).filter(Agendamento.telefone == telefone).order_by(Agendamento.id.desc()).first()
+    agendamento = db.query(Agendamento).filter(Agendamento.telefone_cliente == telefone).order_by(Agendamento.id.desc()).first()
     if not agendamento:
         raise HTTPException(status_code=400,detail="agendamento nao encontrado")
     if agendamento.status in [StatusAgendamento.concluido, StatusAgendamento.cancelado]:
@@ -112,7 +136,7 @@ async def cancelar_agendamento(telefone: str,db: Session = Depends(get_db),empre
 #rota de concluir horario agendado
 @agendamentos_router.post("/concluir_agendamento")
 async def concluir_agendamento(telefone: str,db: Session = Depends(get_db),empresa: Empresa = Depends(verificar_api_key)):
-    agendamento = db.query(Agendamento).filter(Agendamento.telefone == telefone).order_by(Agendamento.id.desc()).first()
+    agendamento = db.query(Agendamento).filter(Agendamento.telefone_cliente == telefone).order_by(Agendamento.id.desc()).first()
     if not agendamento:
         raise HTTPException(status_code=400,detail="agendamento nao encontrado")
     if agendamento.status in [StatusAgendamento.concluido, StatusAgendamento.cancelado]:
@@ -132,8 +156,8 @@ async def concluir_agendamento(telefone: str,db: Session = Depends(get_db),empre
             "mensagem:": "agendamento concluido com sucesso",
             "agendamento": {
                 "id": agendamento.id,
-                "nome": agendamento.nome,
-                "telefone": agendamento.telefone,
+                "nome_cliente": agendamento.nome_cliente,
+                "telefone_cliente": agendamento.telefone_cliente,
                 "data_servico": agendamento.data_servico,
                 "hora_inicio": agendamento.hora_inicio,
                 "hora_fim": agendamento.hora_fim,
@@ -188,13 +212,13 @@ async def horarios_disponiveis(
 
 @agendamentos_router.get("/seus_agendamentos")
 async def seus_agendamentos(telefone: str, db: Session = Depends(get_db),empresa: Empresa = Depends(verificar_api_key)):
-    agendamentos = db.query(Agendamento).filter(Agendamento.telefone == telefone, Agendamento.empresa_id == empresa.id).order_by(Agendamento.data_servico.desc(), Agendamento.hora_inicio.desc()).limit(5).all()
+    agendamentos = db.query(Agendamento).filter(Agendamento.telefone_cliente == telefone, Agendamento.empresa_id == empresa.id).order_by(Agendamento.data_servico.desc(), Agendamento.hora_inicio.desc()).limit(5).all()
     return {
         "agendamentos": [
             {
                 "id": agendamento.id,
-                "nome": agendamento.nome,
-                "telefone": agendamento.telefone,
+                "nome_cliente": agendamento.nome_cliente,
+                "telefone_cliente": agendamento.telefone_cliente,
                 "tipo_servico": agendamento.tipos_servico,
                 "data_servico": agendamento.data_servico,
                 "hora_inicio": agendamento.hora_inicio,
@@ -204,3 +228,5 @@ async def seus_agendamentos(telefone: str, db: Session = Depends(get_db),empresa
             for agendamento in agendamentos
         ]
     }
+
+agendamentos_router_site = APIRouter(prefix='/agendamentos_site',tags=['Agendamentos_Site'])

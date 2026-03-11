@@ -24,13 +24,15 @@ SECRET_KEY = os.getenv("SECRET_KEY") #pegando a secret key do .env pra usar na c
 ALGORITMH = os.getenv("ALGORITMH") 
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))
 
-bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto") #configurando o esquema de criptografia.
+bcrypt_context = CryptContext(schemes=["argon2"], deprecated="auto") #configurando o esquema de criptografia.
 #definimos o esquema de cryptografia como bcrypt e deprecated auto pra n usar esquemas antigos
 
 oauth2_schema = OAuth2PasswordBearer(tokenUrl="/auth/login_formula")
 
 from .agend_routes import agendamentos_router
 from .empresas_routes import empresas_router
+from .clientes_router import clientes_auth_router
 
 app.include_router(agendamentos_router)
 app.include_router(empresas_router)
+app.include_router(clientes_auth_router)

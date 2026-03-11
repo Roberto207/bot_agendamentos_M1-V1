@@ -69,5 +69,10 @@ class AgendamentoResponse(BaseModel):
     class Config:
         orm_mode = True
 
-class Cliente_Create(Basemodel):
-    
+class Cliente_Create(BaseModel):
+    nome : str
+    telefone : str
+    senha : str
+    email : str
+    admin : bool = False
+    ativo : bool = True

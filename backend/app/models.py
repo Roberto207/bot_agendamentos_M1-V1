@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Time, Enum, TIMESTAMP,ForeignKey
+from sqlalchemy import Column, Integer, String, Date, Time, Enum, TIMESTAMP,ForeignKey,Boolean
 from sqlalchemy.orm import relationship
 from .database import Base
 import enum
@@ -67,7 +67,7 @@ class Agendamento(Base):
     criado_em = Column(TIMESTAMP, server_default=func.now(), nullable=False)
 
     empresa = relationship("Empresa", back_populates="agendamentos")
-    
+
     cliente = relationship("Cliente", back_populates="agendamentos")
 
 class Cliente(Base):
@@ -81,3 +81,5 @@ class Cliente(Base):
     origem = Column(Enum(Origem_Cliente), nullable=True)  # Ex: "WhatsApp", "Site"
     criado_em = Column(TIMESTAMP, server_default=func.now(), nullable=False)
     agendamentos = relationship("Agendamento", back_populates="cliente")
+    admin = Column(Boolean, default=False)
+    ativo = Column(Boolean, default=True)

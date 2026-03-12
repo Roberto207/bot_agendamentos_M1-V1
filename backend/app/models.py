@@ -4,7 +4,7 @@ from .database import Base
 import enum
 from sqlalchemy.sql import func
 from .schemas import StatusAgendamento,TipoServico,Origem_Cliente,DiasAtendimento
-from sqlalchemy.dialects.postgresql import ARRAY
+
 
 Base = Base
 
@@ -16,6 +16,7 @@ class Empresa(Base):
     cnpj = Column(String(20), nullable=False, unique=True)
     email = Column(String(255), nullable=False, unique=True)
     telefone = Column(String(20), nullable=False)
+    api_key = Column(String(255), nullable=False, unique=True)  # Chave de API para autenticação
     
     # horario_inicio = Column(Time(timezone=False), nullable=False)
     # horario_fim = Column(Time(timezone=False), nullable=False)
@@ -65,6 +66,8 @@ class Agendamento(Base):
     tipos_servico = Column(Enum(TipoServico), nullable=True)
 
     criado_em = Column(TIMESTAMP, server_default=func.now(), nullable=False)
+
+    origem = Column(Enum(Origem_Cliente), nullable=True)  # Ex: "WhatsApp", "Site"
 
     empresa = relationship("Empresa", back_populates="agendamentos")
 

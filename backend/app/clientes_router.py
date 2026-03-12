@@ -9,10 +9,10 @@ from fastapi.security import OAuth2PasswordRequestForm #usado pra definir o esqu
 from .models import Cliente,Empresa
 from .schemas import Cliente_Create,Origem_Cliente,LoginSchema
 
-def criar_token(usuario_id,duracao_token = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)):
+def criar_token(cliente_id,duracao_token = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)):
     data_expiracao = datetime.now(timezone.utc) + duracao_token # data_expiracao = momento em q o token foi criado + tempo definido na variavel acess token...
     
-    dicionario_infos = {"sub" : str(usuario_id),"expiration_date":data_expiracao.timestamp()} #dicionario q fala quais informacoes estarao presentes no jwt,nesse caso id e data_exp 
+    dicionario_infos = {"sub" : str(cliente_id),"expiration_date":data_expiracao.timestamp()} #dicionario q fala quais informacoes estarao presentes no jwt,nesse caso id e data_exp 
     
     jwt_codificado = jwt.encode(dicionario_infos,SECRET_KEY,algorithm=ALGORITMH) #a funcao q cria jwts,pede o dicionario com o q sera codificado,a chave de codificacao (secret_key) e o algoritmo de codificacao. tudo isso ja foi criado no env e armazenado no arquivo main
     return jwt_codificado
@@ -25,6 +25,9 @@ def autentificar_cliente(email,senha,session):
         return False #se as senhas n coincidirem retorna falso 
 
     return cliente #so retorna cliente se passar por tdos os ifs
+
+
+
 
 clientes_auth_router = APIRouter(prefix='/clientes_auth',tags=['Clientes_Auth']) #criando o roteador de clientes, com prefixo e tag
 
@@ -44,7 +47,7 @@ async def autentificar_cadastrar():
 
 
 @clientes_auth_router.post('/cadastro')
-async def cadastrar_cliente(cliente : Cliente_Create,db : Session = Depends(get_db)):
+async def cadastrar_cliente(cliente : Cliente_Create,db : Session = Depends(get_db),token : str = Depends(verificar_token)):
     """
     ola
     """
@@ -93,3 +96,83 @@ async def login(loginschema : LoginSchema ,db: Session = Depends(get_db)):
             "refresh_token":refresh_token,
             "token_type" : "Bearer"
         }
+
+@clientes_auth_router.post('/login_formula')
+async def login_formula(dados_formulario : OAuth2PasswordRequestForm = Depends(),db: Session = Depends(get_db)):
+    
+    """
+    Autentica um usuário já cadastrado utilizando OAuth2PasswordRequestForm.
+    Valida email e senha e, se corretos, retorna um token JWT de acesso
+    (e opcionalmente um refresh token).
+
+    Essa rota é opcional e existe para facilitar a autenticação via
+    documentação automática do FastAPI, funcionando como alternativa
+    à rota de login tradicional que utiliza LoginSchema.
+    """
+    
+    
+    cliente = autentificar_cliente(dados_formulario.username,dados_formulario.password,session=db) #aplicando a funcao 
+    
+    if not cliente:
+        raise HTTPException(status_code=400,detail="email nao encontrado no sistema ou credenciais invalidas")
+    else:
+        access_token = criar_token(cliente.id)
+        #refresh_token = criar_token(cliente.id,duracao_token= timedelta(days=7)) #token secundario usado qnd o access token expira pra dar mais tempo ao usaurio e ele n preicsar fazer o login novamente. esse token é opcional
+        return {
+            "access_token": access_token,
+            "token_type" : "Bearer"
+        }
+
+
+# @auth_router.get("/refresh_token")
+# #toda funcao de endpoint das rotas que tiver como parametro a Depends(verificar_token) sera restrita a usuarios autentificados com token ativo
+# async def usar_refresh_token(usuario: Usuario = Depends(verificar_token)): #funcao pra usar o refresh token qnd o acess token expira parametros = o parametro usuario tem valor do tipo database Usuario e o seu valor padrao vem da funcao verificar(token) q é uma dependencia
+#     """
+#     Rota pra gerar refresh token,ela é acessada quando o access token expira,ela recebe o usuario autenticado atraves do 
+#     token expirado e gera um novo access token pra ele. O refresh token é opcional e pode ser implementado de acordo com 
+#     as necessidades do sistema,mas a ideia geral é que ele tenha um tempo de expiração mais longo que o access token e s
+#     eja usado para gerar novos access tokens sem precisar que o usuário faça login novamente.
+#     """
+
+
+
+#     #criando novo token
+#     access_token = criar_token(usuario.id)
+#     return {
+#             "access_token ": access_token,
+#             "token_type" : "Bearer"
+#         }
+
+
+
+
+
+
+# @auth_router.delete("/deletar_usuario")
+# async def deletar_usuario(
+#     dados: DeleteSchema,
+#     db: Session = Depends(pegar_sessao),
+#     usuario: Usuario = Depends(verificar_token)
+# ):
+#     """
+#     Rota para deletar um usuário do sistema. Ela recebe um objeto do tipo DeleteSchema com o email do usuário a ser deletado,
+#     uma sessão do banco de dados e o usuário autenticado através do token JWT. A função verifica o nivel de acesso do 
+#     usuario e executa a funcao
+#     """
+    
+    
+    
+    
+#     if usuario.admin == False and usuario.email != dados.email:
+#         raise HTTPException(403, "Voce nao tem permissao para deletar esse usuario")
+#     stmt = select(Usuario).where(Usuario.email == dados.email)
+#     usuario = db.execute(stmt).scalar_one_or_none()
+
+#     if not usuario:
+#         raise HTTPException(404, "Usuário não encontrado")
+
+#     db.delete(usuario)
+#     db.commit()
+
+#     return {"msg": f"Usuário {dados.email} deletado com sucesso"}
+#     print('bolas')

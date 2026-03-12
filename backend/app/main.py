@@ -1,14 +1,6 @@
-from fastapi import FastAPI, Depends, HTTPException, Header, Security,APIRouter
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
-from .database import SessionLocal
-from .dependencies import criar_agendamento,get_db,verificar_api_key
-from .schemas import AgendamentoCreate,StatusAgendamento
-from .models import Agendamento
+from fastapi import FastAPI
 import os
 from dotenv import load_dotenv
-from sqlalchemy import func
-from datetime import date
 from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordBearer
 
@@ -27,7 +19,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))
 bcrypt_context = CryptContext(schemes=["argon2"], deprecated="auto") #configurando o esquema de criptografia.
 #definimos o esquema de cryptografia como bcrypt e deprecated auto pra n usar esquemas antigos
 
-oauth2_schema = OAuth2PasswordBearer(tokenUrl="/auth/login_formula")
+oauth2_schema = OAuth2PasswordBearer(tokenUrl="/clientes_auth/login_formula") #definindo o esquema de autenticacao do tipo oauth2, onde o cliente vai enviar um token jwt no header da requisicao pra acessar rotas protegidas da api, o token jwt é gerado na rota de login e tem um tempo de expiracao definido na variavel ACCESS_TOKEN_EXPIRE_MINUTES, entao o cliente precisa fazer login novamente depois desse tempo pra obter um novo token jwt.
 
 from .agend_routes import agendamentos_router
 from .empresas_routes import empresas_router

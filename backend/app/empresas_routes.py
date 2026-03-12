@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from .database import SessionLocal
-from .dependencies import get_db,verificar_api_key,verificar_api_key_empresa_create
+from .dependencies import get_db,verificar_api_key,verificar_api_key_empresa_create,verificar_token
 from .schemas import EmpresaCreate
 from .models import Empresa,HorarioFuncionamento
+import secrets
+
+
 
 empresas_router = APIRouter(prefix="/empresa", tags=["Empresa"])
 
@@ -12,15 +13,19 @@ empresas_router = APIRouter(prefix="/empresa", tags=["Empresa"])
 async def cadastrar_empresa(
     empresa: EmpresaCreate,
     db: Session = Depends(get_db),
-    autorizado: bool = Depends(verificar_api_key_empresa_create)
+    autorizado: bool = Depends(verificar_token)
 ):
-
+    empresa_existente = db.query(Empresa).filter(Empresa.cnpj == empresa.cnpj).first() or db.query(Empresa).filter(Empresa.email == empresa.email).first() #verificando se o cnpj ou email da empresa ja esta cadastrado na database, se tiver, nao pode cadastrar de novo
+    if empresa_existente:
+        raise HTTPException(status_code = 404,detail = "empresa ja cadastrada,verifique o email ou o cnpj")
+    api_key = secrets.token_hex(32)  # Gerar uma chave de API única para a empresa
     nova_empresa = Empresa(
         nome=empresa.nome,
         cnpj=empresa.cnpj,
         email=empresa.email,
         telefone=empresa.telefone,
-        ramo_empresa=empresa.ramo_empresa
+        ramo_empresa=empresa.ramo_empresa,
+        api_key = api_key 
     )
 
     db.add(nova_empresa)
@@ -42,5 +47,6 @@ async def cadastrar_empresa(
 
     return {
         "id": nova_empresa.id,
-        "nome": nova_empresa.nome
+        "nome": nova_empresa.nome,
+        "api_key": api_key
     }

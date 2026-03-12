@@ -3,7 +3,7 @@ from fastapi import FastAPI, Depends, HTTPException, Header, Security,APIRouter
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from .database import SessionLocal
-from .dependencies import criar_agendamento,get_db,verificar_api_key
+from .dependencies import criar_agendamento_whatssap,get_db,verificar_api_key
 from .schemas import AgendamentoCreate,StatusAgendamento,DiasAtendimento
 from .models import Agendamento,Empresa,HorarioFuncionamento
 import os
@@ -97,7 +97,7 @@ async def criar_agendamento_endpoint(
     
     
     #timedelta oq é 
-    return await criar_agendamento(db, agendamento, empresa)
+    return await criar_agendamento_whatssap(db, agendamento, empresa)
 
 
 

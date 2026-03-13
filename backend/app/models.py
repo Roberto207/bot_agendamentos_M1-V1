@@ -1,9 +1,9 @@
-from sqlalchemy import Column, Integer, String, Date, Time, Enum, TIMESTAMP,ForeignKey,Boolean
+from sqlalchemy import Column, Integer, String, Date, Time, Enum, TIMESTAMP,ForeignKey,Boolean,DECIMAL
 from sqlalchemy.orm import relationship
 from .database import Base
 import enum
 from sqlalchemy.sql import func
-from .schemas import StatusAgendamento,TipoServico,Origem_Cliente,DiasAtendimento
+from .schemas import StatusAgendamento,DiasAtendimento
 
 
 Base = Base
@@ -26,6 +26,8 @@ class Empresa(Base):
     ramo_empresa = Column(String(255), nullable=False)  # Ex: "Barbearia", "Salão de Beleza"
     
     agendamentos = relationship("Agendamento", back_populates="empresa")
+
+    servicos = relationship("Servicos", back_populates="empresa")
 
 class HorarioFuncionamento(Base):
     __tablename__ = "horarios_funcionamento"
@@ -51,9 +53,13 @@ class Agendamento(Base):
 
     cliente_id = Column(Integer, ForeignKey('clientes.id'), nullable=True)
 
+    servico_id = Column(Integer, ForeignKey('servicos.id'), nullable=False)
+
     nome_cliente = Column(String(255), nullable=False)
 
     telefone_cliente = Column(String(20), nullable=False)
+
+    nome_servico = Column(String(255), nullable=False)
     
     data_servico = Column(Date, nullable=False)
 
@@ -63,29 +69,30 @@ class Agendamento(Base):
 
     status = Column(Enum(StatusAgendamento), default="confirmado", nullable=False)
 
-    tipos_servico = Column(Enum(TipoServico), nullable=True)
+    # tipos_servico = Column(Enum(TipoServico), nullable=True)
 
     criado_em = Column(TIMESTAMP, server_default=func.now(), nullable=False)
 
-    origem = Column(Enum(Origem_Cliente), nullable=True)  # Ex: "WhatsApp", "Site"
+    #origem = Column(Enum(Origem_Cliente), nullable=True)  # Ex: "WhatsApp", "Site"
 
     empresa = relationship("Empresa", back_populates="agendamentos")
 
     cliente = relationship("Cliente", back_populates="agendamentos")
 
+    servico = relationship("Servicos", back_populates="agendamentos")
 class Cliente(Base):
     __tablename__ = "clientes"
 
     id = Column(Integer, primary_key=True, index=True,autoincrement=True)
     nome = Column(String(255), nullable=False)
-    email = Column(String(255), nullable=False, unique=False)
+    email = Column(String(255), nullable=True, unique=False)
     telefone = Column(String(20), nullable=False, unique=True)
-    senha = Column(String(255), nullable=True)
-    origem = Column(Enum(Origem_Cliente), nullable=True)  # Ex: "WhatsApp", "Site"
+    #senha = Column(String(255), nullable=True)
+    #origem = Column(Enum(Origem_Cliente), nullable=True)  # Ex: "WhatsApp", "Site"
     criado_em = Column(TIMESTAMP, server_default=func.now(), nullable=False)
     agendamentos = relationship("Agendamento", back_populates="cliente")
-    admin = Column(Boolean, default=False)
-    ativo = Column(Boolean, default=True)
+    # admin = Column(Boolean, default=False)
+    # ativo = Column(Boolean, default=True)
 
 class Usuario(Base):
     __tablename__ = "usuarios_site"
@@ -98,3 +105,25 @@ class Usuario(Base):
     criado_em = Column(TIMESTAMP, server_default=func.now(), nullable=False)
     admin = Column(Boolean, default=False)
     ativo = Column(Boolean, default=True)
+
+class Servicos(Base):
+    __tablename__ = "servicos"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+
+    empresa_id = Column(Integer, ForeignKey('empresas.id'), nullable=False, index=True)
+
+    nome = Column(String(255), nullable=False)
+    descricao = Column(String(255), nullable=True)
+
+    duracao = Column(Integer, nullable=False)  # duração em minutos
+
+    tempo_buffer = Column(Integer, default=0) #tempo adicional para limpeza ou preparação entre agendamentos, em minutos
+
+    preco = Column(DECIMAL(10,2), nullable=False)  # valor monetário
+
+    ativo = Column(Boolean, default=True)
+
+    empresa = relationship("Empresa", back_populates="servicos")
+    
+    agendamentos = relationship("Agendamento", back_populates="servico")

@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from .models import Agendamento,Empresa,Cliente,Usuario
-from .schemas import AgendamentoCreate,Origem_Cliente
+from .schemas import AgendamentoCreate
 from sqlalchemy.exc import IntegrityError, InternalError
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials,OAuth2PasswordBearer
 from .database import SessionLocal
@@ -21,32 +21,38 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))
 
 oauth2_schema = OAuth2PasswordBearer(tokenUrl="/auth_site/login_formula")
 
-async def criar_agendamento_whatssap(db: Session, agendamento: AgendamentoCreate, empresa: Empresa):
-    cliente_existente = db.query(Cliente).filter(Cliente.telefone == agendamento.telefone_cliente).first()
-    novo = Agendamento(
-    empresa_id=empresa.id,
-    nome_cliente=agendamento.nome_cliente,
-    telefone_cliente=agendamento.telefone_cliente,
-    data_servico=agendamento.data_servico,
-    hora_inicio=agendamento.hora_inicio,
-    hora_fim=agendamento.hora_fim,
-    cliente_id = cliente_existente.id if cliente_existente else None,
-    tipos_servico=agendamento.tipos_servico,
-    origem = Origem_Cliente.whatsapp)
+# async def criar_agendamento_whatssap(db: Session, agendamento: AgendamentoCreate, empresa: Empresa):
+#     cliente_existente = db.query(Cliente).filter(Cliente.telefone == agendamento.telefone_cliente).first()
+#     novo = Agendamento(
+#     empresa_id=empresa.id,
+#     nome_cliente=agendamento.nome_cliente,
+#     telefone_cliente=agendamento.telefone_cliente,
+#     data_servico=agendamento.data_servico,
+#     hora_inicio=agendamento.hora_inicio,
+#     hora_fim=agendamento.hora_fim,
+#     cliente_id = cliente_existente.id if cliente_existente else None,
+#     tipos_servico=agendamento.tipos_servico,)
+
+#     if not cliente_existente:
+#         novo_cliente = Cliente(
+#             nome=agendamento.nome_cliente,
+#             telefone=agendamento.telefone_cliente,
+#             email=None,  # Email pode ser opcional para clientes do WhatsApp
+#             criado_em=datetime.now(),)
 
 
 
-    db.add(novo)
-    try:
-        db.commit()
-        db.refresh(novo)
-        return {"status": "confirmado", "mensagem": "Agendamento confirmado", "id": novo.id}
-    except (IntegrityError, InternalError) as e:
-        db.rollback()
-        return {
-            "status": "erro",
-            "mensagem": "Horário já ocupado"
-        }
+    # db.add(novo)
+    # try:
+    #     db.commit()
+    #     db.refresh(novo)
+    #     return {"status": "confirmado", "mensagem": "Agendamento confirmado", "id": novo.id}
+    # except (IntegrityError, InternalError) as e:
+    #     db.rollback()
+    #     return {
+    #         "status": "erro",
+    #         "mensagem": "Horário já ocupado"
+    #     }
 
 # Dependência para DB
 def get_db():
@@ -100,7 +106,7 @@ async def verificar_api_key(
     if not empresa:
         raise HTTPException(
             status_code=401,
-            detail="Empresa não autenticada"
+            detail="Empresa não autentificada"
         )
 
     return empresa

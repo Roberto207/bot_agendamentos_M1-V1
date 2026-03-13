@@ -3,28 +3,25 @@ from fastapi import FastAPI, Depends, HTTPException, Header, Security,APIRouter
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from .database import SessionLocal
-from .dependencies import criar_agendamento_whatssap,get_db,verificar_api_key
+from .dependencies import get_db,verificar_api_key
 from .schemas import AgendamentoCreate,StatusAgendamento,DiasAtendimento
-from .models import Agendamento,Empresa,HorarioFuncionamento
+from .models import Agendamento,Empresa,HorarioFuncionamento,Servicos,Cliente
+from datetime import date, datetime, time, timedelta
 import os
 from dotenv import load_dotenv
 from sqlalchemy import func
 from datetime import date,datetime,time,timedelta
 
 #variaveis importantes para validar os horarios de atendimento e a data maxima de agendamento
-#inicio_atendimento = empresa.horario_inicio().time()
-#fim_atendimento = empresa.horario_fim().time()
-# inicio_atendimento = datetime.strptime("08:00", "%H:%M").time()
-# fim_atendimento = datetime.strptime("18:00", "%H:%M").time()
 data_maxima_agendamento = date.today() + timedelta(days=30)
 #----------------------------------------------------------------
-
-
 load_dotenv()
 API_KEY = os.getenv("SECRET_KEY")
 
+
 agendamentos_router = APIRouter(prefix='/agendamentos_whatssap',tags=['Agendamentos_Whatssap'])
-#@agendamentos_router.get('/')
+
+
 dias_map = {
     0: DiasAtendimento.segunda,
     1: DiasAtendimento.terca,
@@ -35,20 +32,50 @@ dias_map = {
     6: DiasAtendimento.domingo
 }
 
-# Endpoint para criar agendamento
 @agendamentos_router.post("/criar_agendamento")
 async def criar_agendamento_endpoint(
     agendamento: AgendamentoCreate,
     db: Session = Depends(get_db),
     empresa: Empresa = Depends(verificar_api_key)
 ):
-    # inicio_atendimento = empresa.horario_inicio
-    # fim_atendimento = empresa.horario_fim
+
+    # buscar serviço
+    servico = db.query(Servicos).filter(
+        Servicos.nome == agendamento.nome_servico,
+        Servicos.empresa_id == empresa.id
+    ).first()
+
+    if not servico:
+        raise HTTPException(404, "Serviço não encontrado")
 
     hora_inicio = agendamento.hora_inicio
-    hora_fim = agendamento.hora_fim
 
-    
+    # calcular hora fim
+    hora_fim = (
+        datetime.combine(agendamento.data_servico, hora_inicio) +
+        timedelta(minutes=servico.duracao)
+    ).time()
+
+    # remover timezone se existir
+    if hora_inicio.tzinfo:
+        hora_inicio = hora_inicio.replace(tzinfo=None)
+
+    if hora_fim.tzinfo:
+        hora_fim = hora_fim.replace(tzinfo=None)
+
+
+    conflito = db.query(Agendamento).filter(
+        Agendamento.empresa_id == empresa.id,
+        Agendamento.data_servico == agendamento.data_servico,
+        Agendamento.hora_inicio < hora_fim,
+        Agendamento.hora_fim > hora_inicio
+    ).first()
+
+    if conflito:
+        raise HTTPException(400, "Horário já ocupado")
+
+
+    # verificar dia da semana
     dia = dias_map[agendamento.data_servico.weekday()]
 
     horario_dia = db.query(HorarioFuncionamento).filter(
@@ -56,48 +83,70 @@ async def criar_agendamento_endpoint(
         HorarioFuncionamento.dia_semana == dia
     ).first()
 
-    # remover timezone se existir
-    # if horario_dia.horario_inicio.tzinfo:
-    #     horario_dia.horario_inicio = horario_dia.horario_inicio.replace(tzinfo=None)
-    # if horario_dia.horario_fim.tzinfo:
-    #     horario_dia.horario_fim = horario_dia.horario_fim.replace(tzinfo=None)
-    
-    if hora_inicio.tzinfo:
-        hora_inicio = hora_inicio.replace(tzinfo=None)
-    if hora_fim.tzinfo:
-        hora_fim = hora_fim.replace(tzinfo=None)
-
     if not horario_dia:
         raise HTTPException(400, "Empresa não atende nesse dia")
 
-    if agendamento.hora_inicio < horario_dia.horario_inicio or agendamento.hora_fim > horario_dia.horario_fim:
-        raise HTTPException(400, f"Fora do horário de atendimento,Horario de atendimento nesse dia é das {horario_dia.horario_inicio} as {horario_dia.horario_fim}")
+    # verificar horario de funcionamento
+    if hora_inicio < horario_dia.horario_inicio or hora_fim > horario_dia.horario_fim:
+        raise HTTPException(
+            400,
+            f"Fora do horário de atendimento. Horário nesse dia é das {horario_dia.horario_inicio} às {horario_dia.horario_fim}"
+        )
 
-    
+    # validações de data
+    if agendamento.data_servico > date.today() + timedelta(days=30):
+        raise HTTPException(
+            400,
+            f"Data não pode ser maior que 30 dias. Máximo permitido: {date.today() + timedelta(days=30)}"
+        )
 
-    
-
-    # if agendamento.hora_inicio < inicio_atendimento or agendamento.hora_fim > fim_atendimento:
-    #     raise HTTPException(
-    #         status_code=400,
-    #         detail=f"Horario de atendimento é das {inicio_atendimento} às {fim_atendimento}"
-    #     )
-
-    if agendamento.data_servico > data_maxima_agendamento:
-        raise HTTPException(status_code=400, detail=f"Data do serviço {agendamento.data_servico} nao pode ser maior do que 30 dias a partir da data atual {date.today()}, data máxima permitida é {date.today() + timedelta(days=30)}")
-    
     if agendamento.data_servico < date.today():
-        raise HTTPException(status_code=400, detail=f"Data do serviço {agendamento.data_servico} nao pode ser menor do que a data atual {date.today()}")
-    
-    if agendamento.data_servico == date.today() and agendamento.hora_inicio < datetime.now().time():
-        raise HTTPException(status_code=400, detail=f"Horario do serviço {agendamento.hora_inicio} nao pode ser menor do que o horario atual {datetime.now().time()}")
-    
-    
-        
-    
-    
-    #timedelta oq é 
-    return await criar_agendamento_whatssap(db, agendamento, empresa)
+        raise HTTPException(
+            400,
+            f"Data {agendamento.data_servico} não pode ser menor que hoje {date.today()}"
+        )
+
+    if agendamento.data_servico == date.today() and hora_inicio < datetime.now().time():
+        raise HTTPException(
+            400,
+            f"Horário {hora_inicio} já passou. Agora são {datetime.now().time()}"
+        )
+
+    # buscar cliente
+    cliente = db.query(Cliente).filter(
+        Cliente.telefone == agendamento.telefone_cliente
+    ).first()
+
+    # criar cliente se não existir
+    if not cliente:
+        cliente = Cliente(
+            nome=agendamento.nome_cliente,
+            telefone=agendamento.telefone_cliente,
+            criado_em=datetime.now()
+        )
+
+        db.add(cliente)
+        db.commit()
+        db.refresh(cliente)
+
+    # criar agendamento
+    novo = Agendamento(
+        empresa_id=empresa.id,
+        nome_cliente=agendamento.nome_cliente,
+        telefone_cliente=agendamento.telefone_cliente,
+        data_servico=agendamento.data_servico,
+        hora_inicio=hora_inicio,
+        hora_fim=hora_fim,
+        cliente_id=cliente.id,
+        servico_id=servico.id,
+        nome_servico=agendamento.nome_servico
+    )
+
+    db.add(novo)
+    db.commit()
+    db.refresh(novo)
+
+    return novo
 
 
 
@@ -170,12 +219,33 @@ async def concluir_agendamento(telefone: str,db: Session = Depends(get_db),empre
 @agendamentos_router.get("/horarios_disponiveis")
 async def horarios_disponiveis(
     data_servico: date,
+    nome_servico: str,
     db: Session = Depends(get_db),
     empresa: Empresa = Depends(verificar_api_key)
 ):
 
-    inicio = empresa.horario_inicio.hour
-    fim = empresa.horario_fim.hour
+    dia = dias_map[data_servico.weekday()]
+
+    horario_dia = db.query(HorarioFuncionamento).filter(
+        HorarioFuncionamento.empresa_id == empresa.id,
+        HorarioFuncionamento.dia_semana == dia
+    ).first()
+
+    if not horario_dia:
+        raise HTTPException(400, "Empresa não atende nesse dia")
+
+    servico = db.query(Servicos).filter(
+        Servicos.nome == nome_servico,
+        Servicos.empresa_id == empresa.id
+    ).first()
+
+    if not servico:
+        raise HTTPException(404, "Serviço não encontrado")
+
+    duracao = servico.duracao
+
+    inicio = datetime.combine(data_servico, horario_dia.horario_inicio)
+    fim = datetime.combine(data_servico, horario_dia.horario_fim)
 
     horarios_ocupados = db.query(
         Agendamento.hora_inicio,
@@ -188,9 +258,12 @@ async def horarios_disponiveis(
 
     horarios_disponiveis = []
 
-    for hora in range(inicio, fim):
-        hora_inicio = time(hora, 0)
-        hora_fim = time(hora + 1, 0)
+    atual = inicio
+
+    while atual + timedelta(minutes=duracao) <= fim:
+
+        hora_inicio = atual.time()
+        hora_fim = (atual + timedelta(minutes=duracao)).time()
 
         conflito = any(
             hora_inicio < ocupado[1] and hora_fim > ocupado[0]
@@ -203,8 +276,11 @@ async def horarios_disponiveis(
                 "hora_fim": hora_fim.strftime("%H:%M")
             })
 
+        atual += timedelta(minutes=duracao)
+
     return {
         "data_servico": data_servico,
+        "duracao_servico": duracao,
         "horarios_disponiveis": horarios_disponiveis
     }
 
@@ -223,10 +299,10 @@ async def seus_agendamentos(telefone: str, db: Session = Depends(get_db),empresa
                 "data_servico": agendamento.data_servico,
                 "hora_inicio": agendamento.hora_inicio,
                 "hora_fim": agendamento.hora_fim,
-                "status": agendamento.status
+                "status": agendamento.status,
+                "servico": agendamento.nome_servico
             }
             for agendamento in agendamentos
         ]
     }
 
-agendamentos_router_site = APIRouter(prefix='/agendamentos_site',tags=['Agendamentos_Site'])

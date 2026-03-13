@@ -83,3 +83,9 @@ class LoginSchema(BaseModel):
 
     class Config:
         from_attributes = True
+    
+class DeleteSchema(BaseModel):
+    email: str
+
+    class Config:
+        from_attributes = True

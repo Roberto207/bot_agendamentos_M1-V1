@@ -11,7 +11,7 @@ Base = Base
 class Empresa(Base):
     __tablename__ = "empresas"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True,autoincrement=True)#index true significa 
     nome = Column(String(255), nullable=False)
     cnpj = Column(String(20), nullable=False, unique=True)
     email = Column(String(255), nullable=False, unique=True)
@@ -30,7 +30,7 @@ class Empresa(Base):
 class HorarioFuncionamento(Base):
     __tablename__ = "horarios_funcionamento"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True,autoincrement=True)
 
     empresa_id = Column(Integer, ForeignKey("empresas.id"))
 
@@ -45,7 +45,7 @@ class HorarioFuncionamento(Base):
 class Agendamento(Base):
     __tablename__ = "agendamentos"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True,autoincrement=True)
 
     empresa_id = Column('empresa_id',ForeignKey('empresas.id'), nullable=False)
 
@@ -76,7 +76,7 @@ class Agendamento(Base):
 class Cliente(Base):
     __tablename__ = "clientes"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True,autoincrement=True)
     nome = Column(String(255), nullable=False)
     email = Column(String(255), nullable=False, unique=False)
     telefone = Column(String(20), nullable=False, unique=True)
@@ -84,5 +84,17 @@ class Cliente(Base):
     origem = Column(Enum(Origem_Cliente), nullable=True)  # Ex: "WhatsApp", "Site"
     criado_em = Column(TIMESTAMP, server_default=func.now(), nullable=False)
     agendamentos = relationship("Agendamento", back_populates="cliente")
+    admin = Column(Boolean, default=False)
+    ativo = Column(Boolean, default=True)
+
+class Usuario(Base):
+    __tablename__ = "usuarios_site"
+
+    id = Column(Integer, primary_key=True, index=True,autoincrement=True)
+    nome = Column(String(255), nullable=False)
+    email = Column(String(255), nullable=False, unique=True)
+    telefone = Column(String(20), nullable=False, unique=False)
+    senha = Column(String(255), nullable=False)
+    criado_em = Column(TIMESTAMP, server_default=func.now(), nullable=False)
     admin = Column(Boolean, default=False)
     ativo = Column(Boolean, default=True)

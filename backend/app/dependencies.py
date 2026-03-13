@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from .models import Agendamento,Empresa,Cliente
+from .models import Agendamento,Empresa,Cliente,Usuario
 from .schemas import AgendamentoCreate,Origem_Cliente
 from sqlalchemy.exc import IntegrityError, InternalError
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials,OAuth2PasswordBearer
@@ -8,7 +8,7 @@ from fastapi import FastAPI, Depends, HTTPException, Header, Security,APIRouter
 import os
 from dotenv import load_dotenv
 from jose import JWTError, jwt
-#from .main import ALGORITMH,ACCESS_TOKEN_EXPIRE_MINUTES,oauth2_schema
+
 
 bearer_scheme = HTTPBearer()
 load_dotenv()
@@ -16,10 +16,10 @@ API_KEY = os.getenv("SECRET_KEY")
 
 
 SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITMH = os.getenv("ALGORITMH")
+ALGORITHM = os.getenv("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))
 
-oauth2_schema = OAuth2PasswordBearer(tokenUrl="/clientes_auth/login_formula")
+oauth2_schema = OAuth2PasswordBearer(tokenUrl="/auth_site/login_formula")
 
 async def criar_agendamento_whatssap(db: Session, agendamento: AgendamentoCreate, empresa: Empresa):
     cliente_existente = db.query(Cliente).filter(Cliente.telefone == agendamento.telefone_cliente).first()
@@ -61,11 +61,11 @@ security = HTTPBearer()
 def verificar_token(token: str = Depends(oauth2_schema),db: Session = Depends(get_db)):
 
     try:
-        dict_info = jwt.decode(token,SECRET_KEY,algorithms=[ALGORITMH])
+        dict_info = jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM])
         
 
-        id_cliente = int(dict_info.get("sub"))
-        if not id_cliente:
+        id_usuario = int(dict_info.get("sub"))
+        if not id_usuario:
             raise HTTPException(status_code=401, detail="Token sem sub = ids")
     except JWTError as erro:
         print(erro)
@@ -74,10 +74,10 @@ def verificar_token(token: str = Depends(oauth2_schema),db: Session = Depends(ge
 
     #verificar se o token é valido
     #extrair o id do usuario do token 
-    cliente = db.query(Cliente).filter(Cliente.id==id_cliente).first()
-    if not cliente:
+    usuario = db.query(Usuario).filter(Usuario.id==id_usuario).first()
+    if not usuario:
         raise HTTPException(status_code=401,detail="acesso invalido")
-    return cliente
+    return usuario
 
 
 

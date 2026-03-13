@@ -13,18 +13,18 @@ app = FastAPI(title="API de Agendamentos")
 load_dotenv() #carregando as variaveis de ambiente do arquivo .env
 
 SECRET_KEY = os.getenv("SECRET_KEY") #pegando a secret key do .env pra usar na criptografia
-ALGORITMH = os.getenv("ALGORITMH") 
+ALGORITHM = os.getenv("ALGORITHM") 
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))
 
 bcrypt_context = CryptContext(schemes=["argon2"], deprecated="auto") #configurando o esquema de criptografia.
 #definimos o esquema de cryptografia como bcrypt e deprecated auto pra n usar esquemas antigos
 
-oauth2_schema = OAuth2PasswordBearer(tokenUrl="/clientes_auth/login_formula") #definindo o esquema de autenticacao do tipo oauth2, onde o cliente vai enviar um token jwt no header da requisicao pra acessar rotas protegidas da api, o token jwt é gerado na rota de login e tem um tempo de expiracao definido na variavel ACCESS_TOKEN_EXPIRE_MINUTES, entao o cliente precisa fazer login novamente depois desse tempo pra obter um novo token jwt.
+oauth2_schema = OAuth2PasswordBearer(tokenUrl="auth_site/login_formula") #definindo o esquema de autenticacao do tipo oauth2, onde o cliente vai enviar um token jwt no header da requisicao pra acessar rotas protegidas da api, o token jwt é gerado na rota de login e tem um tempo de expiracao definido na variavel ACCESS_TOKEN_EXPIRE_MINUTES, entao o cliente precisa fazer login novamente depois desse tempo pra obter um novo token jwt.
 
 from .agend_routes import agendamentos_router
 from .empresas_routes import empresas_router
-from .clientes_router import clientes_auth_router
+from .auth_site_router import auth_site_router
 
 app.include_router(agendamentos_router)
 app.include_router(empresas_router)
-app.include_router(clientes_auth_router)
+app.include_router(auth_site_router)

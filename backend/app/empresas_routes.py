@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from .dependencies import get_db,verificar_api_key,verificar_api_key_empresa_create,verificar_token
 from .schemas import EmpresaCreate
-from .models import Empresa,HorarioFuncionamento
+from .models import Empresa,HorarioFuncionamento,Usuario
 import secrets
 
 
@@ -13,12 +13,12 @@ empresas_router = APIRouter(prefix="/empresa", tags=["Empresa"])
 async def cadastrar_empresa(
     empresa: EmpresaCreate,
     db: Session = Depends(get_db),
-    autorizado: bool = Depends(verificar_token)
+    usuario: Usuario = Depends(verificar_token)
 ):
     empresa_existente = db.query(Empresa).filter(Empresa.cnpj == empresa.cnpj).first() or db.query(Empresa).filter(Empresa.email == empresa.email).first() #verificando se o cnpj ou email da empresa ja esta cadastrado na database, se tiver, nao pode cadastrar de novo
     if empresa_existente:
         raise HTTPException(status_code = 404,detail = "empresa ja cadastrada,verifique o email ou o cnpj")
-    api_key = secrets.token_hex(32)  # Gerar uma chave de API única para a empresa
+    api_key = secrets.token_hex(16)  # Gerar uma chave de API única para a empresa,mudei de 32 pra 16
     nova_empresa = Empresa(
         nome=empresa.nome,
         cnpj=empresa.cnpj,
@@ -50,3 +50,11 @@ async def cadastrar_empresa(
         "nome": nova_empresa.nome,
         "api_key": api_key
     }
+
+@empresas_router.get("/listar_empresas")
+async def listar_empresas(db: Session = Depends(get_db),usuario : Usuario = Depends(verificar_token)):
+    if not usuario.admin:
+        raise HTTPException(status_code=403,detail="Acesso negado, apenas administradores podem acessar essa rota")
+    
+    empresas = db.query(Empresa).all()
+    return empresas

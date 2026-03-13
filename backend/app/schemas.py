@@ -89,3 +89,14 @@ class DeleteSchema(BaseModel):
 
     class Config:
         from_attributes = True
+
+class UsuarioSchema(BaseModel):
+    nome: str
+    email: str
+    telefone: str
+    senha: str
+    admin: bool = False
+    ativo: bool = True
+
+    class Config:
+        from_attributes = True

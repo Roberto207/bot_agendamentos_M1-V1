@@ -218,6 +218,15 @@ async def atualizar_usuario(
     else:
         raise HTTPException(status_code=403, detail="Sem permissão para atualizar este usuário")
     
+    if not email:
+        email = usuario.email
+        
+    else:
+        usuario = db.query(Usuario).filter(Usuario.email == email).first()
+        if not usuario:
+            raise HTTPException(404, "Usuário não encontrado")
+    
+    
     usuario_atualizado = update_model_strict(db = db,model_instance = usuario,update_schema= dados)
 
     return usuario_atualizado

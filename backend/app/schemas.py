@@ -164,3 +164,29 @@ class ProfissionalUpdate(BaseModel):
     hora_inicio: Optional[time] = None
     hora_fim: Optional[time] = None
     servicos_ids: Optional[List[int]] = None
+
+
+# --- Schemas para sistema multi-usuário por empresa ---
+
+class ConviteAceitarSchema(BaseModel):
+    codigo_convite: str
+
+class UsuarioEmpresaOut(BaseModel):
+    id: int
+    usuario_id: int
+    empresa_id: int
+    nivel: int  # 1=operador, 2=gerenciador, 3=admin_empresa
+    convidado_por: Optional[int] = None
+    criado_em: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class AlterarNivelSchema(BaseModel):
+    usuario_id: int
+    novo_nivel: int  # 1, 2 ou 3
+
+class UsuarioEmpresaCreate(BaseModel):
+    usuario_id: int
+    empresa_id: int
+    nivel: int = 1  # default operador

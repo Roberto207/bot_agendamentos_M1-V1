@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Time, Enum, TIMESTAMP,ForeignKey,Boolean,DECIMAL,Table
+from sqlalchemy import Column, Integer, String, Date, Time, Enum, TIMESTAMP,ForeignKey,Boolean,DECIMAL,Table,UniqueConstraint
 from sqlalchemy.orm import relationship
 from .database import Base
 import enum
@@ -7,6 +7,12 @@ from .schemas import StatusAgendamento,DiasAtendimento
 
 
 Base = Base
+
+# Enum para níveis de acesso de usuários vinculados a empresas
+class NivelAcesso(int, enum.Enum):
+    operador = 1        # pode criar/editar agendamentos, serviços, profissionais
+    gerenciador = 2     # operador + gerenciar dados da empresa
+    admin_empresa = 3   # pode tudo na empresa (convidar, remover, editar, deletar)
 
 class Empresa(Base):
     __tablename__ = "empresas"
@@ -18,6 +24,7 @@ class Empresa(Base):
     email = Column(String(255), nullable=False, unique=True)
     telefone = Column(String(20), nullable=False)
     api_key = Column(String(255), nullable=False, unique=True)  # Chave de API para autenticação
+    codigo_convite = Column(String(32), nullable=True, unique=True)  # Código para convidar usuários
     criado_em = Column(TIMESTAMP, server_default=func.now(), nullable=False)
 
     # horario_inicio = Column(Time(timezone=False), nullable=False)
@@ -31,6 +38,8 @@ class Empresa(Base):
     agendamentos = relationship("Agendamento", back_populates="empresa")
 
     servicos = relationship("Servicos", back_populates="empresa")
+
+    vinculos = relationship("UsuarioEmpresa", back_populates="empresa", cascade="all, delete-orphan")
 
 class HorarioFuncionamento(Base):
     __tablename__ = "horarios_funcionamento"
@@ -112,6 +121,27 @@ class Usuario(Base):
     admin = Column(Boolean, default=False)
     ativo = Column(Boolean, default=True)
 
+    vinculos = relationship("UsuarioEmpresa", back_populates="usuario", foreign_keys="[UsuarioEmpresa.usuario_id]", cascade="all, delete-orphan")
+
+
+# Tabela intermediária: conecta múltiplos usuários a múltiplas empresas com nível de acesso
+class UsuarioEmpresa(Base):
+    __tablename__ = "usuarios_empresas"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios_site.id"), nullable=False)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False)
+    nivel = Column(Integer, nullable=False, default=NivelAcesso.operador.value)  # 1=operador, 2=gerenciador, 3=admin_empresa
+    convidado_por = Column(Integer, ForeignKey("usuarios_site.id"), nullable=True)  # log de quem convidou
+    criado_em = Column(TIMESTAMP, server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("usuario_id", "empresa_id", name="uq_usuario_empresa"),
+    )
+
+    usuario = relationship("Usuario", back_populates="vinculos", foreign_keys=[usuario_id])
+    empresa = relationship("Empresa", back_populates="vinculos")
+    convidador = relationship("Usuario", foreign_keys=[convidado_por])
 
 
 profissional_servico = Table(
@@ -152,7 +182,6 @@ class Servicos(Base):
 
 
 
-
 class Profissional(Base):
     __tablename__ = "profissionais"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
@@ -175,3 +204,4 @@ class Profissional(Base):
         secondary=profissional_servico,
         back_populates="profissionais"
     )
+

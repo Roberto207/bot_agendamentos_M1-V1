@@ -1,12 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from .dependencies import get_db,verificar_api_key,verificar_api_key_empresa_create,verificar_token,update_model_strict
-from .schemas import EmpresaCreate, EmpresaUpdate,EmpresaOut
-from .models import Empresa,HorarioFuncionamento,Usuario
-from .main import bcrypt_context
+from .dependencies import get_db, verificar_api_key, verificar_api_key_empresa_create, verificar_token, verificar_acesso_empresa, update_model_strict
+from .schemas import EmpresaCreate, EmpresaUpdate
+from .models import Empresa, HorarioFuncionamento, Usuario, UsuarioEmpresa, NivelAcesso
 import secrets
-# from sqlalchemy.ext.asyncio import AsyncSession  # Se usar asynsc
-from sqlalchemy.future import select  # Para consultas async
+
 
 
 empresas_router = APIRouter(prefix="/empresa", tags=["Empresa"])
@@ -17,10 +15,10 @@ async def cadastrar_empresa(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(verificar_token)
 ):
-    empresa_existente = db.query(Empresa).filter(Empresa.cnpj == empresa.cnpj).first() or db.query(Empresa).filter(Empresa.email == empresa.email).first() #verificando se o cnpj ou email da empresa ja esta cadastrado na database, se tiver, nao pode cadastrar de novo
+    empresa_existente = db.query(Empresa).filter(Empresa.cnpj == empresa.cnpj).first() or db.query(Empresa).filter(Empresa.email == empresa.email).first()
     if empresa_existente:
         raise HTTPException(status_code = 404,detail = "empresa ja cadastrada,verifique o email ou o cnpj")
-    api_key = secrets.token_hex(16)  # Gerar uma chave de API única para a empresa,mudei de 32 pra 16
+    api_key = secrets.token_hex(16)
     nova_empresa = Empresa(
         nome=empresa.nome,
         cnpj=empresa.cnpj,
@@ -47,6 +45,15 @@ async def cadastrar_empresa(
 
         db.add(novo_horario)
 
+    # Criar vínculo automático: criador vira admin_empresa na tabela intermediária
+    vinculo_criador = UsuarioEmpresa(
+        usuario_id=usuario.id,
+        empresa_id=nova_empresa.id,
+        nivel=NivelAcesso.admin_empresa.value,
+        convidado_por=None
+    )
+    db.add(vinculo_criador)
+
     db.commit()
 
     return {
@@ -64,21 +71,13 @@ async def listar_empresas(db: Session = Depends(get_db),usuario : Usuario = Depe
     return empresas
 
 
-@empresas_router.delete("/{id}")
-async def deletar_empresa(id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(verificar_token),senha_usuario: str = Header(None)):
-    empresa = db.query(Empresa).filter(Empresa.id == id).first()
-    if not empresa:
-        raise HTTPException(status_code=404, detail="Empresa não encontrada")
-    
-    if usuario.admin:
-        pass
-    
-    elif empresa.id_usuario_criador == usuario.id:
-        if not bcrypt_context.verify(senha_usuario, usuario.senha):
-            raise HTTPException(status_code=403, detail="Senha incorreta ou sem autorizacao")
-    else:
-        raise HTTPException(status_code=403, detail="Sem permissão para deletar esta empresa")
-    
+@empresas_router.delete("/{empresa_id}")
+async def deletar_empresa(
+    acesso: dict = Depends(verificar_acesso_empresa(nivel_minimo=3)),
+    db: Session = Depends(get_db)
+):
+    """Apenas admin_empresa (nível 3), criador ou admin do site podem deletar"""
+    empresa = acesso["empresa"]
     
     db.delete(empresa)
     db.commit()
@@ -86,36 +85,14 @@ async def deletar_empresa(id: int, db: Session = Depends(get_db), usuario: Usuar
 
 
 
-
-
-
-@empresas_router.put("/{id}",response_model=EmpresaOut)
-def atualizar_empresa(
-    empresa_id: int,
+@empresas_router.put("/{empresa_id}")
+async def atualizar_empresa(
     dados: EmpresaUpdate,
-    db: Session = Depends(get_db),
-    usuario: Usuario = Depends(verificar_token),
-    senha_usuario: str = Header(None)
+    acesso: dict = Depends(verificar_acesso_empresa(nivel_minimo=3)),
+    db: Session = Depends(get_db)
 ):
-    empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
+    """Apenas admin_empresa (nível 3), criador ou admin do site podem atualizar"""
+    empresa = acesso["empresa"]
     
-    if not empresa:
-        raise HTTPException(status_code=404, detail="Empresa não encontrada")
-    
-    # Verificação de permissão
-    if usuario.admin:
-        pass
-    
-    elif empresa.id_usuario_criador == usuario.id:
-        if not bcrypt_context.verify(senha_usuario, usuario.senha):
-            raise HTTPException(status_code=403, detail="Senha incorreta ou sem autorizacao")
-    else:
-        raise HTTPException(status_code=403, detail="Sem permissão para atualizar esta empresa")
-    
-
-
-    # Atualiza
-    empresa_atualizada = update_model_strict(db, empresa, dados)
-    
-    # Retorna convertido para schema Pydantic
+    empresa_atualizada = update_model_strict(db=db, model_instance=empresa, update_schema=dados)
     return empresa_atualizada

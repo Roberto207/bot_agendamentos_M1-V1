@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from .models import Agendamento,Empresa,Cliente,Usuario
+from .models import Agendamento,Empresa,Cliente,Usuario,UsuarioEmpresa
 from .schemas import AgendamentoCreate
 from sqlalchemy.exc import IntegrityError, InternalError
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials,OAuth2PasswordBearer
@@ -95,6 +95,51 @@ async def verificar_api_key_empresa_create(credentials = Security(security)):
         )
 
     return True
+
+
+def verificar_acesso_empresa(nivel_minimo: int = 1):
+    """
+    Dependency factory que retorna uma dependência FastAPI.
+    Verifica se o usuário logado tem acesso à empresa com nível >= nivel_minimo.
+    
+    Ordem de checagem:
+    1. Admin do site → acesso total (nível 3)
+    2. Criador da empresa (retrocompatibilidade) → nível 3
+    3. Vínculo na tabela usuarios_empresas → checa nível
+    
+    Retorna dict: {"usuario": ..., "empresa": ..., "nivel": ...}
+    """
+    async def _verificar(
+        empresa_id: int,
+        db: Session = Depends(get_db),
+        usuario: Usuario = Depends(verificar_token)
+    ):
+        empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
+        if not empresa:
+            raise HTTPException(status_code=404, detail="Empresa não encontrada")
+
+        # 1. Admin do site → acesso total
+        if usuario.admin:
+            return {"usuario": usuario, "empresa": empresa, "nivel": 3}
+
+        # 2. Retrocompatibilidade: criador da empresa = admin_empresa
+        if empresa.id_usuario_criador == usuario.id:
+            return {"usuario": usuario, "empresa": empresa, "nivel": 3}
+
+        # 3. Vínculo na tabela usuarios_empresas
+        vinculo = db.query(UsuarioEmpresa).filter(
+            UsuarioEmpresa.usuario_id == usuario.id,
+            UsuarioEmpresa.empresa_id == empresa_id
+        ).first()
+
+        if not vinculo or vinculo.nivel < nivel_minimo:
+            raise HTTPException(status_code=403, detail="Sem permissão para acessar esta empresa")
+        
+        return {"usuario": usuario, "empresa": empresa, "nivel": vinculo.nivel}
+    
+    return _verificar
+
+
 
 
 

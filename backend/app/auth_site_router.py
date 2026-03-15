@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session #usado pra criar a sessao do banco de dados
 from sqlalchemy import select
 from fastapi.security import OAuth2PasswordRequestForm #usado pra definir o esquema de autenticacao do tipo oauth2 com senha e bearer token
 from .models import Usuario
-from .schemas import LoginSchema,DeleteSchema,UsuarioSchema
+from .schemas import LoginSchema,DeleteSchema,UsuarioSchema,UsuarioUpdate
 
 
 
@@ -181,4 +181,23 @@ async def deletar_usuario(
     db.commit()
 
     return {"msg": f"Usuário {dados.email} deletado com sucesso"}
-    
+
+@auth_site_router.put("/atualizar_usuario")
+async def atualizar_usuario(
+    dados: UsuarioUpdate,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(verificar_token)
+):
+    """
+    Rota para atualizar os dados do usuário. O e-mail é imutável e não pode ser alterado.
+    """
+    if dados.nome is not None:
+        usuario.nome = dados.nome
+    if dados.telefone is not None:
+        usuario.telefone = dados.telefone
+    if dados.senha is not None:
+        usuario.senha = bcrypt_context.hash(dados.senha)
+        
+    db.commit()
+    db.refresh(usuario)
+    return {"msg": "Dados atualizados com sucesso", "usuario": {"nome": usuario.nome, "telefone": usuario.telefone}}

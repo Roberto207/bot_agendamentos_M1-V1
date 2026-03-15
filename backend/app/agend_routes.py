@@ -38,17 +38,6 @@ async def criar_agendamento_endpoint(
     db: Session = Depends(get_db),
     empresa: Empresa = Depends(verificar_api_key)
 ):
-    # --- Buscar profissional pelo ID informado ---
-    if not agendamento.profissional_id:
-        raise HTTPException(400, detail="É necessário informar o ID do profissional")
-    
-    profissional = db.query(Profissional).filter(
-        Profissional.id == agendamento.profissional_id,
-        Profissional.empresa_id == empresa.id
-    ).first()
-    if not profissional:
-        raise HTTPException(400, detail="Profissional não existe ou não pertence à empresa")
-
     # --- Buscar serviço ---
     servico = db.query(Servicos).filter(
         Servicos.id == agendamento.servico_id,
@@ -62,20 +51,64 @@ async def criar_agendamento_endpoint(
     hora_fim = (datetime.combine(agendamento.data_servico, hora_inicio) + timedelta(minutes=servico.duracao)).time()
     hora_fim = hora_fim.replace(microsecond=0)
 
-    # --- Verificar conflito apenas para este profissional ---
-    # Verifica conflito apenas para o profissional selecionado
-    conflito = db.query(Agendamento).filter(
-        Agendamento.profissional_id == profissional.id,          # <--- aqui
-        Agendamento.data_servico == agendamento.data_servico,
-        Agendamento.hora_inicio < hora_fim,
-        Agendamento.hora_fim > hora_inicio,
-        Agendamento.status == StatusAgendamento.confirmado
-    ).first()
-    if conflito:
-        raise HTTPException(
-            400,
-            detail=f"Horário já ocupado pelo profissional {profissional.nome}"
-        )
+    import random
+    # --- Buscar profissional pelo ID informado ou escolher aleatoriamente ---
+    if agendamento.profissional_id:
+        profissional = db.query(Profissional).filter(
+            Profissional.id == agendamento.profissional_id,
+            Profissional.empresa_id == empresa.id
+        ).first()
+        if not profissional:
+            raise HTTPException(400, detail="Profissional não existe ou não pertence à empresa")
+
+        if profissional.hora_inicio is not None and hora_inicio < profissional.hora_inicio:
+            raise HTTPException(400, detail=f"O profissional {profissional.nome} inicia o expediente às {profissional.hora_inicio}")
+        if profissional.hora_fim is not None and hora_fim > profissional.hora_fim:
+            raise HTTPException(400, detail=f"O profissional {profissional.nome} encerra o expediente às {profissional.hora_fim}")
+
+        # Verifica conflito apenas para o profissional selecionado
+        conflito = db.query(Agendamento).filter(
+            Agendamento.profissional_id == profissional.id,
+            Agendamento.data_servico == agendamento.data_servico,
+            Agendamento.hora_inicio < hora_fim,
+            Agendamento.hora_fim > hora_inicio,
+            Agendamento.status == StatusAgendamento.confirmado
+        ).first()
+        if conflito:
+            raise HTTPException(
+                400,
+                detail=f"Horário já ocupado pelo profissional {profissional.nome}"
+            )
+    else:
+        profissionais_do_servico = servico.profissionais
+        if not profissionais_do_servico:
+            raise HTTPException(400, detail="Nenhum profissional cadastrado para este serviço")
+        
+        profissionais_disponiveis = []
+        for prof in profissionais_do_servico:
+            if not prof.ativo:
+                continue
+            
+            if prof.hora_inicio is not None and hora_inicio < prof.hora_inicio:
+                continue
+            if prof.hora_fim is not None and hora_fim > prof.hora_fim:
+                continue
+
+            conflito = db.query(Agendamento).filter(
+                Agendamento.profissional_id == prof.id,
+                Agendamento.data_servico == agendamento.data_servico,
+                Agendamento.hora_inicio < hora_fim,
+                Agendamento.hora_fim > hora_inicio,
+                Agendamento.status == StatusAgendamento.confirmado
+            ).first()
+            if not conflito:
+                profissionais_disponiveis.append(prof)
+        
+        if not profissionais_disponiveis:
+            raise HTTPException(400, detail="Nenhum profissional disponível para este horário")
+        
+        profissional = random.choice(profissionais_disponiveis)
+        nome_profissional = profissional.nome
 
     # --- Verificar dia da semana e horário de funcionamento ---
     dia = dias_map[agendamento.data_servico.weekday()]
@@ -138,7 +171,13 @@ async def criar_agendamento_endpoint(
     db.commit()
     db.refresh(novo)
 
-    return novo
+    return {"mensagem":"agendamento criado com sucesso", "agendamento_id":novo.id,
+    "data_servico":novo.data_servico,
+    "hora_inicio":novo.hora_inicio,
+    "hora_fim":novo.hora_fim,
+    "nome_profissional":profissional.nome,
+    "servico":servico.nome,
+    "status":novo.status} #novo
 
 
 
@@ -224,24 +263,55 @@ async def horarios_ocupados(
     if profissional_id:
         # Filtra apenas um profissional específico
         query = query.filter(Agendamento.profissional_id == profissional_id)
+        agendamentos = query.order_by(Agendamento.hora_inicio).all()
 
-    agendamentos = query.order_by(Agendamento.hora_inicio).all()
+        horarios = []
+        for ag in agendamentos:
+            horarios.append({
+                "hora_inicio": ag.hora_inicio.strftime("%H:%M"),
+                "hora_fim": ag.hora_fim.strftime("%H:%M"),
+                "profissional": ag.profissional.nome if ag.profissional else "Não atribuído",
+                "cliente": ag.nome_cliente,
+                "servico": ag.nome_servico
+            })
 
-    horarios = []
-    for ag in agendamentos:
-        horarios.append({
-            "hora_inicio": ag.hora_inicio.strftime("%H:%M"),
-            "hora_fim": ag.hora_fim.strftime("%H:%M"),
-            "profissional": ag.profissional.nome if ag.profissional else "Não atribuído",
-            "cliente": ag.nome_cliente,
-            "servico": ag.nome_servico
-        })
-
-    return {
-        "data_servico": data_servico,
-        "profissional_id": profissional_id,
-        "horarios_ocupados": horarios
-    }
+        return {
+            "data_servico": data_servico,
+            "profissional_id": profissional_id,
+            "horarios_ocupados": horarios
+        }
+    else:
+        # Retorna todos os horários ocupados agrupados por profissional da empresa
+        profissionais = db.query(Profissional).filter(
+            Profissional.empresa_id == empresa.id,
+            Profissional.ativo == True
+        ).all()
+        
+        agendamentos = query.order_by(Agendamento.hora_inicio).all()
+        
+        resultado_profissionais = []
+        for prof in profissionais:
+            # Pega os agendamentos apenas desse profissional
+            agends_prof = [ag for ag in agendamentos if ag.profissional_id == prof.id]
+            horarios_prof = []
+            for ag in agends_prof:
+                horarios_prof.append({
+                    "hora_inicio": ag.hora_inicio.strftime("%H:%M"),
+                    "hora_fim": ag.hora_fim.strftime("%H:%M"),
+                    "cliente": ag.nome_cliente,
+                    "servico": ag.nome_servico
+                })
+            
+            resultado_profissionais.append({
+                "profissional_id": prof.id,
+                "profissional_nome": prof.nome,
+                "horarios_ocupados": horarios_prof
+            })
+            
+        return {
+            "data_servico": data_servico,
+            "profissionais": resultado_profissionais
+        }
 
 
 

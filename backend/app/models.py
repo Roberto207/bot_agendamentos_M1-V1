@@ -25,6 +25,7 @@ class Empresa(Base):
     horarios = relationship("HorarioFuncionamento", back_populates="empresa")
     
     ramo_empresa = Column(String(255), nullable=False)  # Ex: "Barbearia", "Salão de Beleza"
+    endereco_empresa = Column(String(255), nullable=True)
     
     agendamentos = relationship("Agendamento", back_populates="empresa")
 
@@ -162,6 +163,9 @@ class Profissional(Base):
     funcao = Column(String(255),nullable=True) # Ex: "Cabeleireiro", "Barbeiro", "Manicure"
 
     ativo = Column(Boolean,default=True)
+
+    hora_inicio = Column(Time, nullable=True)
+    hora_fim = Column(Time, nullable=True)
 
     agendamentos = relationship("Agendamento",back_populates="profissional")
 

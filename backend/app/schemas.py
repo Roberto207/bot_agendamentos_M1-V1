@@ -20,20 +20,16 @@ class DiasAtendimento(str, enum.Enum):
     sabado = "sabado"
     domingo = "domingo"
 
-# class Origem_Cliente(str, Enum):
-#     whatsapp = "WhatsApp"
-#     site = "Site"
 
 
-    
 
 class ServicoSchema(BaseModel):
-    #telefone_empresa : str
     nome: str
-    preco: float
+    descricao: str | None = None
     duracao: int
-    descricao: Optional[str] = None
     tempo_buffer: int = 0
+    preco: float
+    profissionais_ids: List[int]
 
     class Config:
         from_attributes = True
@@ -61,6 +57,8 @@ class AgendamentoCreate(BaseModel):
     data_servico: date
     hora_inicio: time
     nome_servico: str
+    profissional_id: int
+    servico_id: int
     #id_empresa: int
 
     @field_validator("hora_inicio")

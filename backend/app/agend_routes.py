@@ -5,11 +5,11 @@ from sqlalchemy.orm import Session
 from .database import SessionLocal
 from .dependencies import get_db,verificar_api_key
 from .schemas import AgendamentoCreate,StatusAgendamento,DiasAtendimento
-from .models import Agendamento,Empresa,HorarioFuncionamento,Servicos,Cliente
+from .models import Agendamento,Empresa,HorarioFuncionamento,Servicos,Cliente,Profissional
 from datetime import date, datetime, time, timedelta
 import os
 from dotenv import load_dotenv
-from sqlalchemy import func
+from sqlalchemy import func,and_
 from datetime import date,datetime,time,timedelta
 
 #variaveis importantes para validar os horarios de atendimento e a data maxima de agendamento
@@ -38,110 +38,102 @@ async def criar_agendamento_endpoint(
     db: Session = Depends(get_db),
     empresa: Empresa = Depends(verificar_api_key)
 ):
+    # --- Buscar profissional pelo ID informado ---
+    if not agendamento.profissional_id:
+        raise HTTPException(400, detail="É necessário informar o ID do profissional")
+    
+    profissional = db.query(Profissional).filter(
+        Profissional.id == agendamento.profissional_id,
+        Profissional.empresa_id == empresa.id
+    ).first()
+    if not profissional:
+        raise HTTPException(400, detail="Profissional não existe ou não pertence à empresa")
 
-    # buscar serviço
+    # --- Buscar serviço ---
     servico = db.query(Servicos).filter(
-        Servicos.nome == agendamento.nome_servico,
+        Servicos.id == agendamento.servico_id,
         Servicos.empresa_id == empresa.id
     ).first()
-
     if not servico:
-        raise HTTPException(404, "Serviço não encontrado")
+        raise HTTPException(404, detail="Serviço não encontrado")
 
-    hora_inicio = agendamento.hora_inicio
+    # --- Calcular hora fim e limpar microsegundos ---
+    hora_inicio = agendamento.hora_inicio.replace(tzinfo=None, microsecond=0)
+    hora_fim = (datetime.combine(agendamento.data_servico, hora_inicio) + timedelta(minutes=servico.duracao)).time()
+    hora_fim = hora_fim.replace(microsecond=0)
 
-    # calcular hora fim
-    hora_fim = (
-        datetime.combine(agendamento.data_servico, hora_inicio) +
-        timedelta(minutes=servico.duracao)
-    ).time()
-
-    # remover timezone se existir
-    if hora_inicio.tzinfo:
-        hora_inicio = hora_inicio.replace(tzinfo=None)
-
-    if hora_fim.tzinfo:
-        hora_fim = hora_fim.replace(tzinfo=None)
-
-
+    # --- Verificar conflito apenas para este profissional ---
+    # Verifica conflito apenas para o profissional selecionado
     conflito = db.query(Agendamento).filter(
-        Agendamento.empresa_id == empresa.id,
+        Agendamento.profissional_id == profissional.id,          # <--- aqui
         Agendamento.data_servico == agendamento.data_servico,
         Agendamento.hora_inicio < hora_fim,
-        Agendamento.hora_fim > hora_inicio
+        Agendamento.hora_fim > hora_inicio,
+        Agendamento.status == StatusAgendamento.confirmado
     ).first()
-
     if conflito:
-        raise HTTPException(400, "Horário já ocupado")
+        raise HTTPException(
+            400,
+            detail=f"Horário já ocupado pelo profissional {profissional.nome}"
+        )
 
-
-    # verificar dia da semana
+    # --- Verificar dia da semana e horário de funcionamento ---
     dia = dias_map[agendamento.data_servico.weekday()]
-
     horario_dia = db.query(HorarioFuncionamento).filter(
         HorarioFuncionamento.empresa_id == empresa.id,
         HorarioFuncionamento.dia_semana == dia
     ).first()
-
     if not horario_dia:
-        raise HTTPException(400, "Empresa não atende nesse dia")
-
-    # verificar horario de funcionamento
+        raise HTTPException(400, detail="Empresa não atende nesse dia")
     if hora_inicio < horario_dia.horario_inicio or hora_fim > horario_dia.horario_fim:
         raise HTTPException(
             400,
-            f"Fora do horário de atendimento. Horário nesse dia é das {horario_dia.horario_inicio} às {horario_dia.horario_fim}"
+            detail=f"Fora do horário de atendimento. Horário nesse dia é das {horario_dia.horario_inicio} às {horario_dia.horario_fim}"
         )
 
-    # validações de data
+    # --- Validar data ---
     if agendamento.data_servico > date.today() + timedelta(days=30):
         raise HTTPException(
             400,
-            f"Data não pode ser maior que 30 dias. Máximo permitido: {date.today() + timedelta(days=30)}"
+            detail=f"Data não pode ser maior que 30 dias. Máximo permitido: {date.today() + timedelta(days=30)}"
         )
-
     if agendamento.data_servico < date.today():
         raise HTTPException(
             400,
-            f"Data {agendamento.data_servico} não pode ser menor que hoje {date.today()}"
+            detail=f"Data {agendamento.data_servico} não pode ser menor que hoje {date.today()}"
         )
-
     if agendamento.data_servico == date.today() and hora_inicio < datetime.now().time():
         raise HTTPException(
             400,
-            f"Horário {hora_inicio} já passou. Agora são {datetime.now().time()}"
+            detail=f"Horário {hora_inicio} já passou. Agora são {datetime.now().time()}"
         )
 
-    # buscar cliente
-    cliente = db.query(Cliente).filter(
-        Cliente.telefone == agendamento.telefone_cliente
-    ).first()
-
-    # criar cliente se não existir
+    # --- Buscar ou criar cliente ---
+    cliente = db.query(Cliente).filter(Cliente.telefone == agendamento.telefone_cliente).first()
     if not cliente:
         cliente = Cliente(
             nome=agendamento.nome_cliente,
             telefone=agendamento.telefone_cliente,
             criado_em=datetime.now()
         )
-
         db.add(cliente)
         db.commit()
         db.refresh(cliente)
 
-    # criar agendamento
+    # --- Criar agendamento ---
     novo = Agendamento(
         empresa_id=empresa.id,
+        cliente_id=cliente.id,
+        servico_id=servico.id,
         nome_cliente=agendamento.nome_cliente,
         telefone_cliente=agendamento.telefone_cliente,
+        nome_servico=servico.nome,
         data_servico=agendamento.data_servico,
         hora_inicio=hora_inicio,
         hora_fim=hora_fim,
-        cliente_id=cliente.id,
-        servico_id=servico.id,
-        nome_servico=agendamento.nome_servico
+        profissional_id=profissional.id,
+        status=StatusAgendamento.confirmado
     )
-
     db.add(novo)
     db.commit()
     db.refresh(novo)
@@ -216,73 +208,41 @@ async def concluir_agendamento(telefone: str,db: Session = Depends(get_db),empre
 
 #rota de mostrar todos os horarios disponiveis
 
-@agendamentos_router.get("/horarios_disponiveis")
-async def horarios_disponiveis(
+@agendamentos_router.get("/horarios_ocupados")
+async def horarios_ocupados(
     data_servico: date,
-    nome_servico: str,
+    profissional_id: int | None = None,  # se None, busca todos os profissionais
     db: Session = Depends(get_db),
     empresa: Empresa = Depends(verificar_api_key)
 ):
-
-    dia = dias_map[data_servico.weekday()]
-
-    horario_dia = db.query(HorarioFuncionamento).filter(
-        HorarioFuncionamento.empresa_id == empresa.id,
-        HorarioFuncionamento.dia_semana == dia
-    ).first()
-
-    if not horario_dia:
-        raise HTTPException(400, "Empresa não atende nesse dia")
-
-    servico = db.query(Servicos).filter(
-        Servicos.nome == nome_servico,
-        Servicos.empresa_id == empresa.id
-    ).first()
-
-    if not servico:
-        raise HTTPException(404, "Serviço não encontrado")
-
-    duracao = servico.duracao
-
-    inicio = datetime.combine(data_servico, horario_dia.horario_inicio)
-    fim = datetime.combine(data_servico, horario_dia.horario_fim)
-
-    horarios_ocupados = db.query(
-        Agendamento.hora_inicio,
-        Agendamento.hora_fim
-    ).filter(
+    query = db.query(Agendamento).filter(
+        Agendamento.empresa_id == empresa.id,
         Agendamento.data_servico == data_servico,
-        Agendamento.status == StatusAgendamento.confirmado,
-        Agendamento.empresa_id == empresa.id
-    ).all()
+        Agendamento.status == StatusAgendamento.confirmado
+    )
 
-    horarios_disponiveis = []
+    if profissional_id:
+        # Filtra apenas um profissional específico
+        query = query.filter(Agendamento.profissional_id == profissional_id)
 
-    atual = inicio
+    agendamentos = query.order_by(Agendamento.hora_inicio).all()
 
-    while atual + timedelta(minutes=duracao) <= fim:
-
-        hora_inicio = atual.time()
-        hora_fim = (atual + timedelta(minutes=duracao)).time()
-
-        conflito = any(
-            hora_inicio < ocupado[1] and hora_fim > ocupado[0]
-            for ocupado in horarios_ocupados
-        )
-
-        if not conflito:
-            horarios_disponiveis.append({
-                "hora_inicio": hora_inicio.strftime("%H:%M"),
-                "hora_fim": hora_fim.strftime("%H:%M")
-            })
-
-        atual += timedelta(minutes=duracao)
+    horarios = []
+    for ag in agendamentos:
+        horarios.append({
+            "hora_inicio": ag.hora_inicio.strftime("%H:%M"),
+            "hora_fim": ag.hora_fim.strftime("%H:%M"),
+            "profissional": ag.profissional.nome if ag.profissional else "Não atribuído",
+            "cliente": ag.nome_cliente,
+            "servico": ag.nome_servico
+        })
 
     return {
         "data_servico": data_servico,
-        "duracao_servico": duracao,
-        "horarios_disponiveis": horarios_disponiveis
+        "profissional_id": profissional_id,
+        "horarios_ocupados": horarios
     }
+
 
 
 
@@ -295,7 +255,6 @@ async def seus_agendamentos(telefone: str, db: Session = Depends(get_db),empresa
                 "id": agendamento.id,
                 "nome_cliente": agendamento.nome_cliente,
                 "telefone_cliente": agendamento.telefone_cliente,
-                "tipo_servico": agendamento.tipos_servico,
                 "data_servico": agendamento.data_servico,
                 "hora_inicio": agendamento.hora_inicio,
                 "hora_fim": agendamento.hora_fim,
@@ -305,4 +264,3 @@ async def seus_agendamentos(telefone: str, db: Session = Depends(get_db),empresa
             for agendamento in agendamentos
         ]
     }
-

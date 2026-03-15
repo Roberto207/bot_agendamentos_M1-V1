@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Time, Enum, TIMESTAMP,ForeignKey,Boolean,DECIMAL
+from sqlalchemy import Column, Integer, String, Date, Time, Enum, TIMESTAMP,ForeignKey,Boolean,DECIMAL,Table
 from sqlalchemy.orm import relationship
 from .database import Base
 import enum
@@ -11,7 +11,8 @@ Base = Base
 class Empresa(Base):
     __tablename__ = "empresas"
 
-    id = Column(Integer, primary_key=True, index=True,autoincrement=True)#index true significa 
+    id = Column(Integer, primary_key=True, index=True,autoincrement=True)#index true significa
+    id_usuario_criador = Column(Integer,ForeignKey("usuarios_site.id")) 
     nome = Column(String(255), nullable=False)
     cnpj = Column(String(20), nullable=False, unique=True)
     email = Column(String(255), nullable=False, unique=True)
@@ -69,17 +70,19 @@ class Agendamento(Base):
 
     status = Column(Enum(StatusAgendamento), default="confirmado", nullable=False)
 
-    # tipos_servico = Column(Enum(TipoServico), nullable=True)
+    profissional_id = Column(Integer, ForeignKey("profissionais.id"),nullable=True)
 
     criado_em = Column(TIMESTAMP, server_default=func.now(), nullable=False)
-
-    #origem = Column(Enum(Origem_Cliente), nullable=True)  # Ex: "WhatsApp", "Site"
 
     empresa = relationship("Empresa", back_populates="agendamentos")
 
     cliente = relationship("Cliente", back_populates="agendamentos")
 
     servico = relationship("Servicos", back_populates="agendamentos")
+
+    profissional = relationship("Profissional",back_populates="agendamentos")
+
+
 class Cliente(Base):
     __tablename__ = "clientes"
 
@@ -94,6 +97,7 @@ class Cliente(Base):
     # admin = Column(Boolean, default=False)
     # ativo = Column(Boolean, default=True)
 
+
 class Usuario(Base):
     __tablename__ = "usuarios_site"
 
@@ -106,6 +110,14 @@ class Usuario(Base):
     admin = Column(Boolean, default=False)
     ativo = Column(Boolean, default=True)
 
+
+
+profissional_servico = Table(
+    "profissional_servico",
+    Base.metadata,
+    Column("profissional_id", ForeignKey("profissionais.id"), primary_key=True),
+    Column("servico_id", ForeignKey("servicos.id"), primary_key=True)
+)
 class Servicos(Base):
     __tablename__ = "servicos"
 
@@ -114,6 +126,7 @@ class Servicos(Base):
     empresa_id = Column(Integer, ForeignKey('empresas.id'), nullable=False, index=True)
 
     nome = Column(String(255), nullable=False)
+    
     descricao = Column(String(255), nullable=True)
 
     duracao = Column(Integer, nullable=False)  # duração em minutos
@@ -127,3 +140,33 @@ class Servicos(Base):
     empresa = relationship("Empresa", back_populates="servicos")
     
     agendamentos = relationship("Agendamento", back_populates="servico")
+
+    profissionais = relationship(
+        "Profissional",
+        secondary=profissional_servico,
+        back_populates="servicos"
+    )
+
+
+
+
+
+class Profissional(Base):
+    __tablename__ = "profissionais"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    
+    empresa_id = Column(Integer,ForeignKey("empresas.id"),nullable=False,index=True)
+
+    nome = Column(String(255),nullable=False)
+
+    funcao = Column(String(255),nullable=True) # Ex: "Cabeleireiro", "Barbeiro", "Manicure"
+
+    ativo = Column(Boolean,default=True)
+
+    agendamentos = relationship("Agendamento",back_populates="profissional")
+
+    servicos = relationship(
+        "Servicos",
+        secondary=profissional_servico,
+        back_populates="profissionais"
+    )

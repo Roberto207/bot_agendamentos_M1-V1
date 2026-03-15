@@ -48,6 +48,7 @@ class EmpresaCreate(BaseModel):
     email: str
     telefone: str
     ramo_empresa: str
+    endereco_empresa: Optional[str] = None
     horarios: List[HorarioFuncionamentoCreate]
     
 
@@ -57,7 +58,7 @@ class AgendamentoCreate(BaseModel):
     data_servico: date
     hora_inicio: time
     nome_servico: str
-    profissional_id: int
+    profissional_id: Optional[int] = None
     servico_id: int
     #id_empresa: int
 
@@ -107,3 +108,36 @@ class UsuarioSchema(BaseModel):
 
     class Config:
         from_attributes = True
+
+class EmpresaUpdate(BaseModel):
+    nome: Optional[str] = None
+    telefone: Optional[str] = None
+    ramo_empresa: Optional[str] = None
+    endereco_empresa: Optional[str] = None
+
+class UsuarioUpdate(BaseModel):
+    nome: Optional[str] = None
+    telefone: Optional[str] = None
+    senha: Optional[str] = None
+
+class ServicoUpdate(BaseModel):
+    nome: Optional[str] = None
+    descricao: Optional[str] = None
+    duracao: Optional[int] = None
+    tempo_buffer: Optional[int] = None
+    preco: Optional[float] = None
+    ativo: Optional[bool] = None
+
+class ProfissionalCreate(BaseModel):
+    nome: str
+    funcao: str
+    hora_inicio: Optional[time] = None
+    hora_fim: Optional[time] = None
+
+class ProfissionalUpdate(BaseModel):
+    nome: Optional[str] = None
+    funcao: Optional[str] = None
+    ativo: Optional[bool] = None
+    hora_inicio: Optional[time] = None
+    hora_fim: Optional[time] = None
+    servicos_ids: Optional[List[int]] = None

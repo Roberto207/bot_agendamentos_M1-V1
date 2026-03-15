@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
-from .dependencies import get_db,verificar_api_key,verificar_api_key_empresa_create,verificar_token
-from .schemas import EmpresaCreate, EmpresaUpdate
+from .dependencies import get_db,verificar_api_key,verificar_api_key_empresa_create,verificar_token,update_model_strict
+from .schemas import EmpresaCreate, EmpresaUpdate,EmpresaOut
 from .models import Empresa,HorarioFuncionamento,Usuario
+from .main import bcrypt_context
 import secrets
-
+# from sqlalchemy.ext.asyncio import AsyncSession  # Se usar asynsc
+from sqlalchemy.future import select  # Para consultas async
 
 
 empresas_router = APIRouter(prefix="/empresa", tags=["Empresa"])
@@ -63,34 +65,57 @@ async def listar_empresas(db: Session = Depends(get_db),usuario : Usuario = Depe
 
 
 @empresas_router.delete("/{id}")
-async def deletar_empresa(id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(verificar_token)):
+async def deletar_empresa(id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(verificar_token),senha_usuario: str = Header(None)):
     empresa = db.query(Empresa).filter(Empresa.id == id).first()
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa não encontrada")
-    if not usuario.admin and empresa.id_usuario_criador != usuario.id:
-        raise HTTPException(status_code=403, detail="Apenas o admin ou o criador podem deletar a empresa")
+    
+    if usuario.admin:
+        pass
+    
+    elif empresa.id_usuario_criador == usuario.id:
+        if not bcrypt_context.verify(senha_usuario, usuario.senha):
+            raise HTTPException(status_code=403, detail="Senha incorreta ou sem autorizacao")
+    else:
+        raise HTTPException(status_code=403, detail="Sem permissão para deletar esta empresa")
+    
     
     db.delete(empresa)
     db.commit()
     return {"msg": "Empresa deletada com sucesso"}
 
-@empresas_router.put("/{id}")
-async def atualizar_empresa(id: int, dados: EmpresaUpdate, db: Session = Depends(get_db), usuario: Usuario = Depends(verificar_token)):
-    empresa = db.query(Empresa).filter(Empresa.id == id).first()
+
+
+
+
+
+@empresas_router.put("/{id}",response_model=EmpresaOut)
+def atualizar_empresa(
+    empresa_id: int,
+    dados: EmpresaUpdate,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(verificar_token),
+    senha_usuario: str = Header(None)
+):
+    empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
+    
     if not empresa:
         raise HTTPException(status_code=404, detail="Empresa não encontrada")
-    if not usuario.admin and empresa.id_usuario_criador != usuario.id:
-        raise HTTPException(status_code=403, detail="Apenas o admin ou o criador podem atualizar a empresa")
     
-    if dados.nome is not None:
-        empresa.nome = dados.nome
-    if dados.telefone is not None:
-        empresa.telefone = dados.telefone
-    if dados.ramo_empresa is not None:
-        empresa.ramo_empresa = dados.ramo_empresa
-    if dados.endereco_empresa is not None:
-        empresa.endereco_empresa = dados.endereco_empresa
-        
-    db.commit()
-    db.refresh(empresa)
-    return empresa
+    # Verificação de permissão
+    if usuario.admin:
+        pass
+    
+    elif empresa.id_usuario_criador == usuario.id:
+        if not bcrypt_context.verify(senha_usuario, usuario.senha):
+            raise HTTPException(status_code=403, detail="Senha incorreta ou sem autorizacao")
+    else:
+        raise HTTPException(status_code=403, detail="Sem permissão para atualizar esta empresa")
+    
+
+
+    # Atualiza
+    empresa_atualizada = update_model_strict(db, empresa, dados)
+    
+    # Retorna convertido para schema Pydantic
+    return empresa_atualizada

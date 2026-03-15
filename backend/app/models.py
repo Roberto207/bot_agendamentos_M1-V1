@@ -18,7 +18,8 @@ class Empresa(Base):
     email = Column(String(255), nullable=False, unique=True)
     telefone = Column(String(20), nullable=False)
     api_key = Column(String(255), nullable=False, unique=True)  # Chave de API para autenticação
-    
+    criado_em = Column(TIMESTAMP, server_default=func.now(), nullable=False)
+
     # horario_inicio = Column(Time(timezone=False), nullable=False)
     # horario_fim = Column(Time(timezone=False), nullable=False)
     

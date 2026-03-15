@@ -1,5 +1,5 @@
 from pydantic import BaseModel,field_validator
-from datetime import date, time
+from datetime import date, time,datetime
 from enum import Enum
 from typing import List,Optional
 
@@ -83,7 +83,7 @@ class Cliente_Create(BaseModel):
     telefone : str
     #senha : str
     email : Optional[str] = None
-    criado_em : date
+    criado_em : Optional[date] = None
 
 class LoginSchema(BaseModel):
     email : str
@@ -115,10 +115,33 @@ class EmpresaUpdate(BaseModel):
     ramo_empresa: Optional[str] = None
     endereco_empresa: Optional[str] = None
 
+
+class EmpresaOut(BaseModel):
+    id: int
+    nome: str
+    telefone: str | None
+    ramo_empresa: str | None
+    endereco_empresa: str | None
+    criado_em: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True  # Permite converter SQLAlchemy -> Pydantic
+
 class UsuarioUpdate(BaseModel):
     nome: Optional[str] = None
     telefone: Optional[str] = None
     senha: Optional[str] = None
+
+class UsuarioOut(BaseModel):
+    id: int
+    nome: str
+    email: str
+    telefone: str
+    ativo: bool
+    criado_em: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
 
 class ServicoUpdate(BaseModel):
     nome: Optional[str] = None

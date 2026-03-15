@@ -1,5 +1,5 @@
-from fastapi import APIRouter,Depends, HTTPException #criador de roteadores q gerenciam as rotas e o gerenciador de dependencias E o http pra mensagens de erro
-from .dependencies import get_db,verificar_token #importando a dependencia de conexao com o banco de dados e a dependencia de verificacao da api key
+from fastapi import APIRouter,Depends, HTTPException,Header #criador de roteadores q gerenciam as rotas e o gerenciador de dependencias E o http pra mensagens de erro
+from .dependencies import get_db,verificar_token,update_model_strict #importando a dependencia de conexao com o banco de dados e a dependencia de verificacao da api key
 from .main import bcrypt_context,SECRET_KEY,ALGORITHM,ACCESS_TOKEN_EXPIRE_MINUTES,oauth2_schema
 from passlib.hash import bcrypt #importando as variaveis de criptografia e token do main
 from jose import jwt,JWTError #usado pra criacao de jwts 
@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session #usado pra criar a sessao do banco de dados
 from sqlalchemy import select
 from fastapi.security import OAuth2PasswordRequestForm #usado pra definir o esquema de autenticacao do tipo oauth2 com senha e bearer token
 from .models import Usuario
-from .schemas import LoginSchema,DeleteSchema,UsuarioSchema,UsuarioUpdate
+from .schemas import LoginSchema,DeleteSchema,UsuarioSchema,UsuarioUpdate,UsuarioOut
 
 
 
@@ -157,7 +157,8 @@ async def usar_refresh_token(usuario: Usuario = Depends(verificar_token)): #func
 async def deletar_usuario(
     dados: DeleteSchema,
     db: Session = Depends(get_db),
-    usuario: Usuario = Depends(verificar_token)
+    usuario: Usuario = Depends(verificar_token),
+    senha_usuario: str = Header(None)
 ):
     """
     Rota para deletar um usuário do sistema. Ela recebe um objeto do tipo DeleteSchema com o email do usuário a ser deletado,
@@ -166,11 +167,18 @@ async def deletar_usuario(
     """
     
     
+    if usuario.admin:
+        pass
+
+    elif usuario.email != dados.email:
+        if not bcrypt_context.verify(senha_usuario, usuario.senha):
+            raise HTTPException(status_code=403, detail="Senha incorreta ou sem autorização para deletar este usuário")
+    
+    else:
+        raise HTTPException(status_code=403, detail="Sem permissão para deletar este usuário")
     
     
     
-    if usuario.admin == False and usuario.email != dados.email:
-        raise HTTPException(403, "Voce nao tem permissao para deletar esse usuario")
     stmt = select(Usuario).where(Usuario.email == dados.email)
     usuario_a_deletar = db.execute(stmt).scalar_one_or_none()
 
@@ -182,22 +190,39 @@ async def deletar_usuario(
 
     return {"msg": f"Usuário {dados.email} deletado com sucesso"}
 
-@auth_site_router.put("/atualizar_usuario")
+@auth_site_router.put("/atualizar_usuario",response_model=UsuarioOut)
 async def atualizar_usuario(
     dados: UsuarioUpdate,
     db: Session = Depends(get_db),
-    usuario: Usuario = Depends(verificar_token)
+    senha_atual : str = Header(None),
+    usuario: Usuario = Depends(verificar_token),
+    email : str = Header(None)
+
 ):
     """
     Rota para atualizar os dados do usuário. O e-mail é imutável e não pode ser alterado.
     """
-    if dados.nome is not None:
-        usuario.nome = dados.nome
-    if dados.telefone is not None:
-        usuario.telefone = dados.telefone
-    if dados.senha is not None:
-        usuario.senha = bcrypt_context.hash(dados.senha)
-        
-    db.commit()
-    db.refresh(usuario)
-    return {"msg": "Dados atualizados com sucesso", "usuario": {"nome": usuario.nome, "telefone": usuario.telefone}}
+    if not usuario:
+        raise HTTPException(status_code=401, detail="Usuário não autenticado")
+    
+    if not usuario.ativo:
+        raise HTTPException(status_code=403, detail="Usuário inativo. Contate o administrador.")
+    
+    if usuario.admin:
+        pass
+
+    elif usuario.email == email:
+        if not bcrypt_context.verify(senha_atual, usuario.senha):
+            raise HTTPException(status_code=403, detail="Senha incorreta ou sem autorização para atualizar este usuário")
+    
+    else:
+        raise HTTPException(status_code=403, detail="Sem permissão para atualizar este usuário")
+    
+    usuario_atualizado = update_model_strict(db = db,model_instance = usuario,update_schema= dados)
+
+    return usuario_atualizado
+    
+
+
+
+

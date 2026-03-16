@@ -197,8 +197,10 @@ def update_model_strict(
         if value is None:
             continue
 
-        # 3. IGNORA SE VALOR FOR None, STRING VAZIA, OU STRING IGNORADA
-        # # 4. SE FOR STRING, VERIFICA REGRAS EXTRAS    
+        # 3. IGNORA VALORES PADRÃO INDESEJADOS (0, 0.0, strings vazias ou genéricas)
+        if isinstance(value, (int, float)) and value == 0:
+            continue
+
         if isinstance(value, str):
             stripped = value.strip().lower()
             if stripped == "" or stripped in strings_ignoradas:
@@ -206,11 +208,15 @@ def update_model_strict(
                 
             # SE O CAMPO FOR "SENHA", FAZ HASH!
             if field == "senha":
-                # Hash da senha antes de salvar
                 hashed_value = bcrypt_context.hash(value)
                 setattr(model_instance, field, hashed_value)
-                continue  # Já tratou, vai para próximo campo
+                continue
         
+        # 4. TRATAMENTO DE HORÁRIOS (remover timezone para evitar erros de comparação)
+        from datetime import time as dt_time
+        if isinstance(value, dt_time):
+            value = value.replace(tzinfo=None)
+
         # 5. SE CHEGOU AQUI, VALOR É VÁLIDO → ATUALIZA NO BANCO
         setattr(model_instance, field, value)
     

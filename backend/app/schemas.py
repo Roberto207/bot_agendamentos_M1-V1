@@ -180,6 +180,7 @@ class UsuarioEmpresaOut(BaseModel):
     empresa_id: int
     nivel: int  # 1=operador, 2=gerenciador, 3=admin_empresa
     convidado_por: Optional[int] = None
+    usuario_nome: Optional[str] = None
     criado_em: Optional[datetime] = None
 
     class Config:

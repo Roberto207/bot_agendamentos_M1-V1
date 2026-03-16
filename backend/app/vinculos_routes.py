@@ -91,7 +91,18 @@ async def listar_vinculos(
     vinculos = db.query(UsuarioEmpresa).filter(
         UsuarioEmpresa.empresa_id == empresa.id
     ).all()
-    return vinculos
+    
+    return [
+        {
+            "id": vinculo.id,
+            "usuario_id": vinculo.usuario_id,
+            "empresa_id": vinculo.empresa_id,
+            "nivel": vinculo.nivel,
+            "convidado_por": vinculo.convidado_por,
+            "usuario_nome": vinculo.usuario.nome if vinculo.usuario else "Desconhecido"
+        } 
+        for vinculo in vinculos
+    ]
 
 
 # --- ALTERAR NÍVEL DE UM USUÁRIO (admin_empresa, nível 3) ---

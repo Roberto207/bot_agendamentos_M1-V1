@@ -20,6 +20,8 @@ Com base no modelo em SQLAlchemy:
 - **Profissional (`profissionais`)**: Profissionais liberais na empresa.
 - **Cliente (`clientes`)**: Dados do cliente final que interage no WhatsApp.
 - **Agendamento (`agendamentos`)**: Histórico com os dados relatórios (Cliente, Empresa, Serviço, Profissional, status de confirmação, horários de início e fim).
+- **UsuarioEmpresa (`usuarios_empresas`)**: Tabela de vínculo para o sistema multi-usuário (Vínculos), permitindo múltiplos colaboradores (Operador, Gerenciador, Admin) por empresa.
+- **HorarioProfissional (`horarios_profissionais`)**: Horários específicos de cada profissional, validados contra os horários da empresa.
 
 ---
 
@@ -27,14 +29,22 @@ Com base no modelo em SQLAlchemy:
 A API (FastAPI) orquestra todas as requisições em uma arquitetura modular por rotas:
 - **`auth_site_router.py`**: Gerencia a autenticação e administração dos donos de empresas no portal SaaS (Cadastro, Login).
 - **`empresas_routes.py`**: CRUD e registro de empresas ligadas ao usuário autenticado, mantendo dados isolados.
-- **`servicos_routes.py`**: CRUD de serviços de cada organização.
+- **`vinculos_routes.py`**: Gerencia o sistema multi-usuário via convites e níveis de acesso.
+- **`servicos_routes.py`**: CRUD de serviços de cada organização e gestão detalhada de profissionais e horários específicos.
 - **`agend_routes.py`**: Rotas vitais consumidas pelo **Agente de IA**:
   - GET `/agendamentos/ver_horarios_disponiveis`
-  - POST `/agendamentos` (Criação do agendamento)
-  - POST `/agendamentos/cancelar` (Cancelamento)
-  - POST `/agendamentos/concluir` (Marcação de atendimento concluído)
+  - POST `/agendamentos_whatssap/criar_agendamento`
+  - POST `/agendamentos_whatssap/cancelar_agendamento`
+  - POST `/agendamentos_whatssap/concluir_agendamento`
 
-O Agente IA injeta no Header da chamada: `Authorization: Bearer <API_KEY>` fornecida pela empresa, autenticando instantaneamente para validar vagas no PostgreSQL (inclusive via Triggers internos da base de dados) sem risco de duplicidade ou acessos cruzados.
+---
+
+## Refinamentos Técnicos Recentes
+- **Strict Update Utility**: Implementação da função `update_model_strict` para evitar que valores padrão indesejados (como `0` ou strings vazias) de formulários inconsistentes sobrescrevam dados reais no banco.
+- **Timezone Normalization**: Padronização de todos os objetos de tempo para o formato "naive" (sem timezone) em nível de API para evitar erros de comparação (`TypeError`).
+- **Validação de Propriedade**: Checagem rigorosa de `empresa_id` em todas as relações entre serviços e profissionais, impedindo associações indevidas.
+
+O Agente IA injeta no Header da chamada: `Authorization: Bearer <API_KEY>` fornecida pela empresa, autenticando instantaneamente para validar vagas no PostgreSQL sem risco de duplicidade.
 
 ---
 

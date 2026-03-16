@@ -26,10 +26,11 @@ async def criar_servico(
     Valida se os IDs dos profissionais informados pertencem à empresa.
     """
     empresa = acesso["empresa"]
+    # Validação de propriedade: todos os profissionais vinculados devem pertencer à mesma empresa
     for id in servico.profissionais_ids:
-        profissional = db.query(Profissional).filter(Profissional.id == id, Profissional.empresa_id == empresa.id).first()
-        if not profissional:
-            raise HTTPException(status_code=404, detail="Profissional não encontrado")
+        v_profissional = db.query(Profissional).filter(Profissional.id == id, Profissional.empresa_id == empresa.id).first()
+        if not v_profissional:
+            raise HTTPException(status_code=404, detail=f"Profissional {id} não encontrado ou não pertence a esta empresa")
     novo = Servicos(
         nome=servico.nome,
         duracao=servico.duracao,
@@ -122,13 +123,20 @@ async def criar_profissional(
                     400,
                     detail=f"A empresa não funciona no dia '{horario.dia_semana.value}'. Horário ignorado."
                 )
+
+            # Garantir que horários sejam naive para comparação
+            h_inicio = horario.horario_inicio.replace(tzinfo=None)
+            h_fim = horario.horario_fim.replace(tzinfo=None)
+            e_inicio = h_empresa.horario_inicio.replace(tzinfo=None)
+            e_fim = h_empresa.horario_fim.replace(tzinfo=None)
+
             # Validar que o horário do profissional está dentro do horário da empresa
-            if horario.horario_inicio < h_empresa.horario_inicio or horario.horario_fim > h_empresa.horario_fim:
+            if h_inicio < e_inicio or h_fim > e_fim:
                 raise HTTPException(
                     400,
                     detail=f"Horário do profissional no dia '{horario.dia_semana.value}' "
-                           f"({horario.horario_inicio}-{horario.horario_fim}) está fora do "
-                           f"horário da empresa ({h_empresa.horario_inicio}-{h_empresa.horario_fim})"
+                           f"({h_inicio}-{h_fim}) está fora do "
+                           f"horário da empresa ({e_inicio}-{e_fim})"
                 )
 
             novo_horario = HorarioProfissional(
@@ -142,7 +150,9 @@ async def criar_profissional(
         db.commit()
         db.refresh(novo)
 
-    return {"msg": "Profissional cadastrado com sucesso", "id": novo.id, "nome": novo.nome}
+    return {"msg": "Profissional cadastrado com sucesso", "id": novo.id, "nome": novo.nome,
+    "funcao:": novo.funcao, "ativo": novo.ativo,"servicos_ids": [servico.id for servico in novo.servicos],
+    "horarios": [{"dia_semana": horario.dia_semana, "horario_inicio": horario.horario_inicio, "horario_fim": horario.horario_fim} for horario in novo.horarios]}
 
 
 @servicos_router.put("/{empresa_id}/profissional/{id}")
@@ -187,12 +197,19 @@ async def atualizar_profissional(
                     400,
                     detail=f"A empresa não funciona no dia '{horario.dia_semana.value}'"
                 )
-            if horario.horario_inicio < h_empresa.horario_inicio or horario.horario_fim > h_empresa.horario_fim:
+            
+            # Garantir que horários sejam naive para comparação
+            h_inicio = horario.horario_inicio.replace(tzinfo=None)
+            h_fim = horario.horario_fim.replace(tzinfo=None)
+            e_inicio = h_empresa.horario_inicio.replace(tzinfo=None)
+            e_fim = h_empresa.horario_fim.replace(tzinfo=None)
+
+            if h_inicio < e_inicio or h_fim > e_fim:
                 raise HTTPException(
                     400,
                     detail=f"Horário no dia '{horario.dia_semana.value}' "
-                           f"({horario.horario_inicio}-{horario.horario_fim}) fora do "
-                           f"horário da empresa ({h_empresa.horario_inicio}-{h_empresa.horario_fim})"
+                           f"({h_inicio}-{h_fim}) fora do "
+                           f"horário da empresa ({e_inicio}-{e_fim})"
                 )
 
             novo_horario = HorarioProfissional(
@@ -210,7 +227,9 @@ async def atualizar_profissional(
         update_schema=dados,
         exclude_fields=["servicos_ids", "horarios"]
     )
-    return {"msg": "Profissional atualizado com sucesso"}
+    return {"msg": "Profissional atualizado com sucesso", "id": profissional.id, "nome": profissional.nome,
+    "funcao": profissional.funcao, "ativo": profissional.ativo,"servicos_ids": [servico.id for servico in profissional.servicos],
+    "horarios": [{"dia_semana": horario.dia_semana, "horario_inicio": horario.horario_inicio, "horario_fim": horario.horario_fim} for horario in profissional.horarios]}
 
 
 @servicos_router.delete("/{empresa_id}/profissional/{id}")
@@ -247,11 +266,15 @@ async def adicionar_profissionais(
     if not servico:
         raise HTTPException(status_code=404, detail="Serviço não encontrado")
 
-    profissionais = db.query(Profissional).filter(
-        Profissional.id.in_(profissionais_ids), Profissional.empresa_id == empresa.id
-    ).all()
-
-    servico.profissionais.extend(profissionais)
+    # Validação de propriedade: todos os profissionais vinculados devem pertencer à mesma empresa
+    profissionais = []
+    for p_id in profissionais_ids:
+        p_obj = db.query(Profissional).filter(Profissional.id == p_id, Profissional.empresa_id == empresa.id).first()
+        if not p_obj:
+            raise HTTPException(status_code=404, detail=f"Profissional {p_id} não encontrado ou não pertence a esta empresa")
+        profissionais.append(p_obj)
+    
+    servico.profissionais = profissionais
     db.commit()
     return {"msg": "Profissionais vinculados"}
 

@@ -49,10 +49,11 @@ async def autentificar_cadastrar():
     return {'mensagem' : 'voce acessou a rota padrao de autentificacao','autentificado' : True} #é possivel passar mais de uma informacao no dicionario,aqui mandamos o true q o usuario esta autentificado,claro q nao foi autentificado de vdd mas por enquanto deixamos assim 
 
 
-@auth_site_router.post('/cadastro')
-async def cadastrar_usuario(usuario : UsuarioSchema,db : Session = Depends(get_db)):
+@auth_site_router.post("/cadastrar")
+async def cadastrar_usuario(usuario: UsuarioSchema, db: Session = Depends(get_db)):
     """
-    ola
+    Cadastra um novo usuário no portal.
+    Realiza o hash da senha e verifica se o email já está em uso.
     """
     usuario_existente = db.query(Usuario).filter(Usuario.email == usuario.email).first() #verificando se o email do usuario ja esta cadastrado na database, se tiver, nao pode cadastrar de novo
     if usuario_existente:
@@ -102,21 +103,15 @@ async def login(loginschema : LoginSchema ,db: Session = Depends(get_db)):
             "token_type" : "Bearer"
         }
 
-@auth_site_router.post('/login_formula')
-async def login_formula(dados_formulario : OAuth2PasswordRequestForm = Depends(),db: Session = Depends(get_db)):
-    
+@auth_site_router.post("/login_formula")
+async def login_usuario(dados: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """
-    Autentica um usuário já cadastrado utilizando OAuth2PasswordRequestForm.
-    Valida email e senha e, se corretos, retorna um token JWT de acesso
-    (e opcionalmente um refresh token).
-
-    Essa rota é opcional e existe para facilitar a autenticação via
-    documentação automática do FastAPI, funcionando como alternativa
-    à rota de login tradicional que utiliza LoginSchema.
+    Realiza a autenticação do usuário e retorna um token JWT de acesso.
+    Segue o formato padrão OAuth2 Password Bearer.
     """
     
     
-    usuario = autentificar_usuario(dados_formulario.username,dados_formulario.password,session=db) #aplicando a funcao 
+    usuario = autentificar_usuario(dados.username,dados.password,session=db) #aplicando a funcao 
     
     if not usuario:
         raise HTTPException(status_code=400,detail="email nao encontrado no sistema ou credenciais invalidas")
@@ -127,6 +122,13 @@ async def login_formula(dados_formulario : OAuth2PasswordRequestForm = Depends()
             "access_token": access_token,
             "token_type" : "Bearer"
         }
+
+@auth_site_router.get("/me", response_model=UsuarioOut)
+async def perfil_usuario(usuario: Usuario = Depends(verificar_token)):
+    """
+    Retorna os dados do perfil do usuário autenticado através do token.
+    """
+    return usuario
 
 
 @auth_site_router.get("/refresh_token")
@@ -149,8 +151,16 @@ async def usar_refresh_token(usuario: Usuario = Depends(verificar_token)): #func
         }
 
 
-
-
+@auth_site_router.get("/listar_usuarios")
+async def listar_usuarios(db: Session = Depends(get_db), usuario: Usuario = Depends(verificar_token)):
+    """
+    Lista todos os usuários do sistema.
+    Acesso restrito a administradores globais (admin=True).
+    """
+    if not usuario.admin:
+        raise HTTPException(status_code=403, detail="Apenas administradores podem listar usuários.")
+    usuarios = db.query(Usuario).all()
+    return usuarios
 
 
 @auth_site_router.delete("/deletar_usuario")
@@ -190,17 +200,17 @@ async def deletar_usuario(
 
     return {"msg": f"Usuário {dados.email} deletado com sucesso"}
 
-@auth_site_router.put("/atualizar_usuario",response_model=UsuarioOut)
-async def atualizar_usuario(
-    dados: UsuarioUpdate,
+@auth_site_router.put("/perfil")
+async def atualizar_perfil(
+    dados: UsuarioUpdate, 
+    usuario: Usuario = Depends(verificar_token), 
     db: Session = Depends(get_db),
-    senha_atual : str = Header(None),
-    usuario: Usuario = Depends(verificar_token),
-    email : str = Header(None)
-
+    senha_atual: str = Header(None),
+    email: str = Header(None)
 ):
     """
-    Rota para atualizar os dados do usuário. O e-mail é imutável e não pode ser alterado.
+    Rota para atualizar os dados do perfil do usuário logado.
+    Permite que admins atualizem qualquer usuário se passarem o email no header.
     """
     if not usuario:
         raise HTTPException(status_code=401, detail="Usuário não autenticado")

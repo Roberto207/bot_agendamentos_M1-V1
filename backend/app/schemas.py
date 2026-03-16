@@ -5,6 +5,7 @@ from typing import List,Optional
 
 
 class StatusAgendamento(str, Enum):
+    """Estados possíveis de um agendamento."""
     confirmado = "confirmado"
     cancelado = "cancelado"
     concluido = "concluido"
@@ -12,6 +13,7 @@ class StatusAgendamento(str, Enum):
 import enum
 
 class DiasAtendimento(str, enum.Enum):
+    """Dias da semana para controle de funcionamento."""
     segunda = "segunda"
     terca = "terca"
     quarta = "quarta"
@@ -41,6 +43,8 @@ class HorarioFuncionamentoCreate(BaseModel):
     dia_semana: DiasAtendimento
     horario_inicio: time
     horario_fim: time
+
+# --- Schemas de Criação (Input) ---
 
 class EmpresaCreate(BaseModel):
     nome: str
@@ -114,6 +118,7 @@ class EmpresaUpdate(BaseModel):
     telefone: Optional[str] = None
     ramo_empresa: Optional[str] = None
     endereco_empresa: Optional[str] = None
+    horarios: Optional[List[HorarioFuncionamentoCreate]] = None  # adicionar/substituir horários
 
 
 class EmpresaOut(BaseModel):
@@ -154,16 +159,14 @@ class ServicoUpdate(BaseModel):
 class ProfissionalCreate(BaseModel):
     nome: str
     funcao: str
-    hora_inicio: Optional[time] = None
-    hora_fim: Optional[time] = None
+    horarios: Optional[List[HorarioFuncionamentoCreate]] = None  # horários por dia da semana
 
 class ProfissionalUpdate(BaseModel):
     nome: Optional[str] = None
     funcao: Optional[str] = None
     ativo: Optional[bool] = None
-    hora_inicio: Optional[time] = None
-    hora_fim: Optional[time] = None
     servicos_ids: Optional[List[int]] = None
+    horarios: Optional[List[HorarioFuncionamentoCreate]] = None  # substitui todos os horários
 
 
 # --- Schemas para sistema multi-usuário por empresa ---
@@ -189,4 +192,57 @@ class AlterarNivelSchema(BaseModel):
 class UsuarioEmpresaCreate(BaseModel):
     usuario_id: int
     empresa_id: int
-    nivel: int = 1  # default operador
+    nivel: int = 1  # default operador
+
+
+# --- Schemas de saída (Out) ---
+
+class HorarioOut(BaseModel):
+    dia_semana: str
+    horario_inicio: time
+    horario_fim: time
+
+    class Config:
+        from_attributes = True
+
+class ServicosOut(BaseModel):
+    id: int
+    nome: str
+    duracao: int
+    preco: float
+    empresa_id: int
+    descricao: Optional[str] = None
+    tempo_buffer: int = 0
+    ativo: bool = True
+
+    class Config:
+        from_attributes = True
+
+class ProfissionalOut(BaseModel):
+    id: int
+    nome: str
+    empresa_id: int
+    funcao: Optional[str] = None
+    ativo: bool = True
+    servicos_ofertados: List[str] = []  # nomes dos serviços
+    horarios: List[HorarioOut] = []
+
+    class Config:
+        from_attributes = True
+
+class EmpresaDetailOut(BaseModel):
+    id: int
+    nome: str
+    cnpj: str
+    email: str
+    telefone: str
+    ramo_empresa: str
+    endereco_empresa: Optional[str] = None
+    criado_em: Optional[datetime] = None
+    horarios: List[HorarioOut] = []
+    servicos: List[ServicosOut] = []
+    profissionais: List[ProfissionalOut] = []
+
+    class Config:
+        from_attributes = True
+

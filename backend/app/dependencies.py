@@ -28,6 +28,10 @@ ModelType = TypeVar("ModelType")
 
 # Dependência para DB
 def get_db():
+    """
+    Dependência do FastAPI que fornece uma sessão de banco de dados por requisição.
+    Garante que a conexão seja fechada automaticamente após o término da resposta.
+    """
     db = SessionLocal()
     try:
         yield db
@@ -36,25 +40,26 @@ def get_db():
 
 security = HTTPBearer()
 
-def verificar_token(token: str = Depends(oauth2_schema),db: Session = Depends(get_db)):
-
+def verificar_token(token: str = Depends(oauth2_schema), db: Session = Depends(get_db)):
+    """
+    Verifica a validade do token JWT enviado no header Authorization.
+    Decodifica o token, extrai o ID do usuário (sub) e verifica sua existência no banco.
+    Retorna o objeto do usuário se autenticado, caso contrário lança erro 401.
+    """
     try:
-        dict_info = jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM])
+        dict_info = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         
-
         id_usuario = int(dict_info.get("sub"))
         if not id_usuario:
             raise HTTPException(status_code=401, detail="Token sem sub = ids")
     except JWTError as erro:
         print(erro)
-        raise HTTPException(status_code=401,detail="acesso negado,verifique a validade do token")
+        raise HTTPException(status_code=401, detail="Acesso negado, verifique a validade do token")
         
-
-    #verificar se o token é valido
-    #extrair o id do usuario do token 
-    usuario = db.query(Usuario).filter(Usuario.id==id_usuario).first()
+    # Verificar se o usuário existe e está ativo no sistema
+    usuario = db.query(Usuario).filter(Usuario.id == id_usuario).first()
     if not usuario:
-        raise HTTPException(status_code=401,detail="acesso invalido")
+        raise HTTPException(status_code=401, detail="Acesso inválido")
     return usuario
 
 
@@ -99,15 +104,16 @@ async def verificar_api_key_empresa_create(credentials = Security(security)):
 
 def verificar_acesso_empresa(nivel_minimo: int = 1):
     """
-    Dependency factory que retorna uma dependência FastAPI.
+    Dependency factory que retorna uma dependência FastAPI para verificar permissões em nível de empresa.
+    
     Verifica se o usuário logado tem acesso à empresa com nível >= nivel_minimo.
     
     Ordem de checagem:
-    1. Admin do site → acesso total (nível 3)
-    2. Criador da empresa (retrocompatibilidade) → nível 3
-    3. Vínculo na tabela usuarios_empresas → checa nível
+    1. Admin do site (admin=True) → Acesso total (nível 3).
+    2. Criador da empresa (id_usuario_criador) → Acesso total (nível 3).
+    3. Vínculo na tabela usuarios_empresas → Checa o nível específico atribuído.
     
-    Retorna dict: {"usuario": ..., "empresa": ..., "nivel": ...}
+    Retorna um dicionário com: {"usuario": objeto_usuario, "empresa": objeto_empresa, "nivel": nivel_detectado}
     """
     async def _verificar(
         empresa_id: int,
@@ -126,7 +132,7 @@ def verificar_acesso_empresa(nivel_minimo: int = 1):
         if empresa.id_usuario_criador == usuario.id:
             return {"usuario": usuario, "empresa": empresa, "nivel": 3}
 
-        # 3. Vínculo na tabela usuarios_empresas
+        # 3. Vínculo na tabela usuarios_empresas para usuários colaboradores
         vinculo = db.query(UsuarioEmpresa).filter(
             UsuarioEmpresa.usuario_id == usuario.id,
             UsuarioEmpresa.empresa_id == empresa_id
@@ -148,14 +154,24 @@ def update_model_strict(
     db: Session, 
     model_instance: ModelType, 
     update_schema: BaseModel,
-    strings_ignoradas: list[str] = None
+    strings_ignoradas: list[str] = None,
+    exclude_fields: list[str] = None
 ) -> ModelType:
     """
-    Atualiza apenas campos válidos.
-    Strings ignoradas: None, vazias, "string", ou customizadas
+    Utilitário para atualizar instâncias de modelos SQLAlchemy de forma segura e restrita.
+    
+    - Ignora campos não enviados (exclude_unset=True).
+    - Filtra valores strings genéricos (ex: "string", "null").
+    - Realiza o hash automático de senhas se o campo 'senha' for atualizado.
+    - Suporta 'exclude_fields' para pular campos que são tratados manualmente (ex: relações complexas).
+    
+    Retorna a instância do modelo atualizada e persistida.
     """
     if strings_ignoradas is None:
         strings_ignoradas = ["string", "null", "undefined", "none","int","float","bool","true","false"]
+    
+    if exclude_fields is None:
+        exclude_fields = []
     
     # Converte tudo para lowercase para comparação
     strings_ignoradas = [s.lower() for s in strings_ignoradas]
@@ -170,8 +186,14 @@ def update_model_strict(
     
     # 2. PERCORRE CADA CAMPO ENVIADO
     for field, value in update_data.items():
-        # field = nome do campo (ex: "endereco")
-        # value = valor enviado (ex: "Rua X")
+        # Pular campos excluídos
+        if field in exclude_fields:
+            continue
+            
+        # Pular se o campo não existir no modelo (segurança)
+        if not hasattr(model_instance, field):
+            continue
+
         if value is None:
             continue
 

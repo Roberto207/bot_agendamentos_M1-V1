@@ -38,6 +38,11 @@ async def criar_agendamento_endpoint(
     db: Session = Depends(get_db),
     empresa: Empresa = Depends(verificar_api_key)
 ):
+    """
+    Cria um novo agendamento via integração de WhatsApp.
+    Valida horários da empresa, disponibilidade do profissional (ou seleciona um aleatório)
+    e vincula ou cria o cadastro do cliente.
+    """
     # --- Buscar serviço ---
     servico = db.query(Servicos).filter(
         Servicos.id == agendamento.servico_id,
@@ -183,7 +188,10 @@ async def criar_agendamento_endpoint(
 
 
 @agendamentos_router.post("/cancelar_agendamento")
-async def cancelar_agendamento(telefone: str,db: Session = Depends(get_db),empresa: Empresa = Depends(verificar_api_key)): #,_: None = Depends(verificar_api_key)
+async def cancelar_agendamento(telefone: str, db: Session = Depends(get_db), empresa: Empresa = Depends(verificar_api_key)):
+    """
+    Cancela o último agendamento ativo vinculado ao número de telefone fornecido.
+    """
     agendamento = db.query(Agendamento).filter(Agendamento.telefone_cliente == telefone).order_by(Agendamento.id.desc()).first()
     if not agendamento:
         raise HTTPException(status_code=400,detail="agendamento nao encontrado")
@@ -215,7 +223,11 @@ async def cancelar_agendamento(telefone: str,db: Session = Depends(get_db),empre
 
 #rota de concluir horario agendado
 @agendamentos_router.post("/concluir_agendamento")
-async def concluir_agendamento(telefone: str,db: Session = Depends(get_db),empresa: Empresa = Depends(verificar_api_key)):
+async def concluir_agendamento(telefone: str, db: Session = Depends(get_db), empresa: Empresa = Depends(verificar_api_key)):
+    """
+    Marca o último agendamento do cliente como concluído.
+    Valida se o horário do serviço já passou antes de permitir a conclusão.
+    """
     agendamento = db.query(Agendamento).filter(Agendamento.telefone_cliente == telefone).order_by(Agendamento.id.desc()).first()
     if not agendamento:
         raise HTTPException(status_code=400,detail="agendamento nao encontrado")
@@ -250,10 +262,14 @@ async def concluir_agendamento(telefone: str,db: Session = Depends(get_db),empre
 @agendamentos_router.get("/horarios_ocupados")
 async def horarios_ocupados(
     data_servico: date,
-    profissional_id: int | None = None,  # se None, busca todos os profissionais
+    profissional_id: int | None = None,
     db: Session = Depends(get_db),
     empresa: Empresa = Depends(verificar_api_key)
 ):
+    """
+    Retorna a lista de horários já reservados para uma determinada data.
+    Pode filtrar por um profissional específico ou retornar o status de todos.
+    """
     query = db.query(Agendamento).filter(
         Agendamento.empresa_id == empresa.id,
         Agendamento.data_servico == data_servico,
@@ -317,7 +333,10 @@ async def horarios_ocupados(
 
 
 @agendamentos_router.get("/seus_agendamentos")
-async def seus_agendamentos(telefone: str, db: Session = Depends(get_db),empresa: Empresa = Depends(verificar_api_key)):
+async def seus_agendamentos(telefone: str, db: Session = Depends(get_db), empresa: Empresa = Depends(verificar_api_key)):
+    """
+    Retorna os últimos 5 agendamentos realizados pelo cliente (identificado pelo telefone).
+    """
     agendamentos = db.query(Agendamento).filter(Agendamento.telefone_cliente == telefone, Agendamento.empresa_id == empresa.id).order_by(Agendamento.data_servico.desc(), Agendamento.hora_inicio.desc()).limit(5).all()
     return {
         "agendamentos": [

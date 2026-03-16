@@ -10,10 +10,14 @@ vinculos_router = APIRouter(prefix="/vinculos", tags=["Vínculos Empresa-Usuári
 
 # --- GERAR CÓDIGO DE CONVITE (apenas admin_empresa, nível 3) ---
 @vinculos_router.post("/{empresa_id}/gerar_convite")
-async def gerar_convite(
+async def gerar_codigo_convite(
     acesso: dict = Depends(verificar_acesso_empresa(nivel_minimo=3)),
     db: Session = Depends(get_db)
 ):
+    """
+    Gera um código único de 32 caracteres para convidar novos usuários colaboradores.
+    Apenas administradores de empresa (Nível 3) podem gerar o código.
+    """
     empresa = acesso["empresa"]
     empresa.codigo_convite = secrets.token_hex(16)
     db.commit()
@@ -31,6 +35,10 @@ async def aceitar_convite(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(verificar_token)
 ):
+    """
+    Associa o usuário logado a uma empresa utilizando um código de convite válido.
+    O novo usuário entra com nível 1 (Operador) por padrão.
+    """
     empresa = db.query(Empresa).filter(
         Empresa.codigo_convite == dados.codigo_convite
     ).first()
@@ -75,6 +83,10 @@ async def listar_vinculos(
     acesso: dict = Depends(verificar_acesso_empresa(nivel_minimo=3)),
     db: Session = Depends(get_db)
 ):
+    """
+    Lista todos os usuários vinculados a uma empresa específica.
+    Acesso restrito a administradores de empresa (Nível 3).
+    """
     empresa = acesso["empresa"]
     vinculos = db.query(UsuarioEmpresa).filter(
         UsuarioEmpresa.empresa_id == empresa.id
@@ -84,11 +96,15 @@ async def listar_vinculos(
 
 # --- ALTERAR NÍVEL DE UM USUÁRIO (admin_empresa, nível 3) ---
 @vinculos_router.put("/{empresa_id}/alterar_nivel")
-async def alterar_nivel(
+async def alterar_nivel_acesso(
     dados: AlterarNivelSchema,
     acesso: dict = Depends(verificar_acesso_empresa(nivel_minimo=3)),
     db: Session = Depends(get_db)
 ):
+    """
+    Altera o nível de permissão (1, 2 ou 3) de um usuário colaborador.
+    Acesso restrito a administradores de empresa (Nível 3).
+    """
     if dados.novo_nivel not in [1, 2, 3]:
         raise HTTPException(status_code=400, detail="Nível inválido. Use 1 (operador), 2 (gerenciador) ou 3 (admin_empresa)")
 
@@ -126,6 +142,11 @@ async def remover_vinculo(
     acesso: dict = Depends(verificar_acesso_empresa(nivel_minimo=3)),
     db: Session = Depends(get_db)
 ):
+    """
+    Remove o vínculo de um usuário com a empresa.
+    Impedindo que o usuário logado remova a si mesmo ou o criador da empresa.
+    Acesso restrito a administradores de empresa (Nível 3).
+    """
     empresa = acesso["empresa"]
     usuario_logado = acesso["usuario"]
 

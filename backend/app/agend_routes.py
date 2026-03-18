@@ -367,6 +367,8 @@ async def seus_agendamentos(telefone: str, db: Session = Depends(get_db), empres
 async def listar_agendamentos_admin(
     empresa_id: int,
     data: Optional[date] = None,
+    data_inicio: Optional[date] = None,
+    data_fim: Optional[date] = None,
     profissional_id: Optional[int] = None,
     db: Session = Depends(get_db),
     acesso: dict = Depends(verificar_acesso_empresa(nivel_minimo=1))
@@ -379,6 +381,12 @@ async def listar_agendamentos_admin(
     
     if data:
         query = query.filter(Agendamento.data_servico == data)
+    
+    if data_inicio:
+        query = query.filter(Agendamento.data_servico >= data_inicio)
+    
+    if data_fim:
+        query = query.filter(Agendamento.data_servico <= data_fim)
     
     if profissional_id:
         query = query.filter(Agendamento.profissional_id == profissional_id)

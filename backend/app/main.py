@@ -36,9 +36,11 @@ from .empresas_routes import empresas_router
 from .auth_site_router import auth_site_router
 from .servicos_routes import servicos_router
 from .vinculos_routes import vinculos_router
+from .dashboard_routes import dashboard_router
 
 app.include_router(agendamentos_router)
 app.include_router(empresas_router)
 app.include_router(auth_site_router)
 app.include_router(servicos_router)
 app.include_router(vinculos_router)
+app.include_router(dashboard_router)

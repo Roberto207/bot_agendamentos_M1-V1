@@ -97,6 +97,46 @@ class LoginSchema(BaseModel):
     class Config:
         from_attributes = True
     
+class ChartDataPoint(BaseModel):
+    label: str
+    value: float
+
+class HeatmapPoint(BaseModel):
+    dia_semana: int  # 0-6
+    hora: int        # 0-23
+    valor: float
+
+class PeriodoFiltro(str, enum.Enum):
+    dia = "dia"
+    semana = "semana"
+    mes = "mes"
+
+class DashboardStats(BaseModel):
+    # Métricas Principais
+    total_empresas: int
+    total_agendamentos: int
+    total_profissionais: int
+    taxa_utilizacao: float
+    taxa_cancelamento: float
+    
+    # Gráficos e Detalhes
+    agendamentos_por_empresa: List[ChartDataPoint]
+    agendamentos_por_dia: List[ChartDataPoint]
+    top_profissionais: List[ChartDataPoint]
+    
+    # Novas métricas para drill-down
+    crescimento_empresas: List[ChartDataPoint]
+    empresas_por_status: List[ChartDataPoint]
+    agendamentos_por_horario: List[ChartDataPoint]
+    comparativo_periodo: List[ChartDataPoint]
+    ranking_profissionais: List[ChartDataPoint]
+    tempo_medio_profissional: List[ChartDataPoint]
+    heatmap_ocupacao: List[HeatmapPoint]
+    disponibilidade_vs_preenchido: List[ChartDataPoint]
+
+    class Config:
+        from_attributes = True
+
 class DeleteSchema(BaseModel):
     email: str
 

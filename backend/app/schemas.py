@@ -53,7 +53,8 @@ class EmpresaCreate(BaseModel):
     telefone: str
     ramo_empresa: str
     endereco_empresa: Optional[str] = None
-    horarios: List[HorarioFuncionamentoCreate]
+    horarios: List[HorarioFuncionamentoCreate] = []
+    #horarios: List[HorarioFuncionamentoCreate]
     
 
 class AgendamentoCreate(BaseModel):
@@ -246,4 +247,4 @@ class EmpresaDetailOut(BaseModel):
 
     class Config:
         from_attributes = True
-
+

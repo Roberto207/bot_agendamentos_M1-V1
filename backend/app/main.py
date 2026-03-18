@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
 from passlib.context import CryptContext
@@ -9,6 +10,15 @@ from fastapi.security import OAuth2PasswordBearer
 
 
 app = FastAPI(title="API de Agendamentos")
+
+# Configuração de CORS para permitir que o Lovable (Frontend) acesse a API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Em produção, especifique os domínios permitidos
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 load_dotenv() #carregando as variaveis de ambiente do arquivo .env
 

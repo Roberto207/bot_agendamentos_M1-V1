@@ -4,6 +4,10 @@ from .dependencies import get_db, verificar_api_key, verificar_api_key_empresa_c
 from .schemas import EmpresaCreate, EmpresaUpdate, EmpresaDetailOut, HorarioOut, ServicosOut, ProfissionalOut
 from .models import Empresa, HorarioFuncionamento, Usuario, UsuarioEmpresa, NivelAcesso, Servicos, Profissional
 import secrets
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 
@@ -20,6 +24,11 @@ async def cadastrar_empresa(
     Requer um usuário logado. O criador se torna automaticamente o administrador da empresa.
     Gera uma API Key única para a empresa.
     """
+    # LOG do que está recebendo
+    logger.info(f"Dados recebidos: {empresa.model_dump()}")
+    logger.info(f"Tipo: {type(empresa)}")
+    
+    
     empresa_existente = db.query(Empresa).filter(Empresa.cnpj == empresa.cnpj).first() or db.query(Empresa).filter(Empresa.email == empresa.email).first()
     if empresa_existente:
         raise HTTPException(status_code = 404,detail = "empresa ja cadastrada,verifique o email ou o cnpj")
@@ -39,16 +48,16 @@ async def cadastrar_empresa(
     db.commit()
     db.refresh(nova_empresa)
 
-    for horario in empresa.horarios:
+    if empresa.horarios:  # Só itera se existir e não for vazio
+        for horario in empresa.horarios:
+            novo_horario = HorarioFuncionamento(
+                empresa_id=nova_empresa.id,
+                dia_semana=horario.dia_semana,
+                horario_inicio=horario.horario_inicio,
+                horario_fim=horario.horario_fim
+            )
 
-        novo_horario = HorarioFuncionamento(
-            empresa_id=nova_empresa.id,
-            dia_semana=horario.dia_semana,
-            horario_inicio=horario.horario_inicio,
-            horario_fim=horario.horario_fim
-        )
-
-        db.add(novo_horario)
+            db.add(novo_horario)
 
     # Criar vínculo automático: criador vira admin_empresa na tabela intermediária
     vinculo_criador = UsuarioEmpresa(

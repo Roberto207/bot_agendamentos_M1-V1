@@ -1,7 +1,7 @@
 # Sistema de Agendamentos com I.A. via WhatsApp (SaaS)
 
 ## Descrição
-Uma plataforma SaaS de agendamentos automatizados via WhatsApp usando **Agente de IA customizado**, FastAPI, PostgreSQL e SQLAlchemy.
+Uma plataforma SaaS de agendamentos automatizados via WhatsApp usando **Agente de IA customizado**, FastAPI, PostgreSQL, SQLAlchemy e Alembic.
 
 Diferente de sistemas convencionais (como n8n), nosso sistema conta com um **Agente de IA** próprio, focado em entender as solicitações do cliente via WhatsApp, em linguagem natural, verificando disponibilidade e realizando agendamentos, remarcações e cancelamentos através da nossa API.
 

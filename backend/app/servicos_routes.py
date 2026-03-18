@@ -15,7 +15,7 @@ servicos_router = APIRouter(prefix='/servicos', tags=['Serviços'])
 # TODAS AS ROTAS USAM TOKEN JWT + verificar_acesso_empresa
 # ====================================================================
 
-@servicos_router.post("/{empresa_id}/cadastrar_servicos")
+@servicos_router.post("/{empresa_id}/cadastrar")
 async def criar_servico(
     servico: ServicoSchema,
     acesso: dict = Depends(verificar_acesso_empresa(nivel_minimo=1)),
@@ -84,7 +84,7 @@ async def deletar_servico(
     return {"msg": "Serviço deletado com sucesso"}
 
 
-@servicos_router.post("/{empresa_id}/cadastrar_profissionais")
+@servicos_router.post("/{empresa_id}/profissionais/cadastrar")
 async def criar_profissional(
     dados: ProfissionalCreate,
     acesso: dict = Depends(verificar_acesso_empresa(nivel_minimo=1)),
@@ -249,7 +249,7 @@ async def deletar_profissional(
     return {"msg": "Profissional deletado com sucesso"}
 
 
-@servicos_router.post("/{empresa_id}/{servico_id}/ligar_profissionais_servicos")
+@servicos_router.post("/{empresa_id}/{servico_id}/vincular")
 async def adicionar_profissionais(
     servico_id: int,
     profissionais_ids: list[int],
@@ -279,7 +279,7 @@ async def adicionar_profissionais(
     return {"msg": "Profissionais vinculados"}
 
 
-@servicos_router.get("/{empresa_id}/listar_servicos_profissionais")
+@servicos_router.get("/{empresa_id}/listar")
 async def listar_servicos_profissionais(
     acesso: dict = Depends(verificar_acesso_empresa(nivel_minimo=1)),
     db: Session = Depends(get_db)

@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 empresas_router = APIRouter(prefix="/empresa", tags=["Empresa"])
 
-@empresas_router.post("/cadastrar_empresa")
+@empresas_router.post("/cadastrar")
 async def cadastrar_empresa(
     empresa: EmpresaCreate,
     db: Session = Depends(get_db),
@@ -28,6 +28,21 @@ async def cadastrar_empresa(
     logger.info(f"Dados recebidos: {empresa.model_dump()}")
     logger.info(f"Tipo: {type(empresa)}")
     
+    # ---------------------------------------------------------
+    # TODO: Sistema de busca de CNPJ na internet (FASE DE TESTE - COMENTADO)
+    # import httpx
+    # try:
+    #     async with httpx.AsyncClient() as client:
+    #         response = await client.get(f"https://receitaws.com.br/v1/cnpj/{empresa.cnpj}")
+    #         if response.status_code == 200:
+    #             dados_cnpj = response.json()
+    #             if dados_cnpj.get("status") == "ERROR":
+    #                 # raise HTTPException(status_code=400, detail="CNPJ Inválido ou não encontrado")
+    #                 pass
+    #             logger.info(f"CNPJ Verificado: {dados_cnpj.get('nome')}")
+    # except Exception as e:
+    #     logger.warning(f"Erro ao validar CNPJ: {e}")
+    # ---------------------------------------------------------
     
     empresa_existente = db.query(Empresa).filter(Empresa.cnpj == empresa.cnpj).first() or db.query(Empresa).filter(Empresa.email == empresa.email).first()
     if empresa_existente:
@@ -76,17 +91,43 @@ async def cadastrar_empresa(
         "api_key": api_key
     }
 
-@empresas_router.get("/listar_empresas")
+@empresas_router.get("/listar")
 async def listar_empresas(db: Session = Depends(get_db), usuario: Usuario = Depends(verificar_token)):
     """
-    Lista todas as empresas cadastradas.
-    Acesso restrito a administradores globais do site (admin=True).
+    Lista as empresas associadas ao usuário logado.
+    Se o usuário for admin global (admin=True), lista todas as empresas.
     """
-    if not usuario.admin:
-        raise HTTPException(status_code=403,detail="Acesso negado, apenas administradores podem acessar essa rota")
-    
-    empresas = db.query(Empresa).all()
-    return empresas
+    if usuario.admin:
+        empresas = db.query(Empresa).all()
+    else:
+        # Empresas onde o usuário é o criador
+        empresas_criador = db.query(Empresa).filter(Empresa.id_usuario_criador == usuario.id).all()
+        
+        # Empresas onde o usuário tem vínculo na tabela UsuarioEmpresa
+        empresas_vinculado = db.query(Empresa).join(UsuarioEmpresa).filter(UsuarioEmpresa.usuario_id == usuario.id).all()
+        
+        # Combinar as listas sem duplicatas (usando IDs como chave)
+        visto = set()
+        resultado = []
+        for e in empresas_criador + empresas_vinculado:
+            if e.id not in visto:
+                resultado.append(e)
+                visto.add(e.id)
+        empresas = resultado
+
+    return [
+        {
+            "id": e.id,
+            "nome": e.nome,
+            "cnpj": e.cnpj,
+            "email": e.email,
+            "telefone": e.telefone,
+            "ramo": e.ramo_empresa, # Mapeando para 'ramo' conforme o frontend espera
+            "endereco": e.endereco_empresa, # Mapeando para 'endereco'
+            "criado_em": e.criado_em
+        }
+        for e in empresas
+    ]
 
 
 @empresas_router.delete("/{empresa_id}")

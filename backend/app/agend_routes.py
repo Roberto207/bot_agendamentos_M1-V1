@@ -3,12 +3,13 @@ from fastapi import FastAPI, Depends, HTTPException, Header, Security,APIRouter
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from .database import SessionLocal
-from .dependencies import get_db,verificar_api_key
 from .schemas import AgendamentoCreate,StatusAgendamento,DiasAtendimento
 from .models import Agendamento,Empresa,HorarioFuncionamento,Servicos,Cliente,Profissional
+from .dependencies import get_db, verificar_api_key, verificar_acesso_empresa
 from datetime import date, datetime, time, timedelta
 import os
 from dotenv import load_dotenv
+from typing import Optional
 from sqlalchemy import func,and_
 from datetime import date,datetime,time,timedelta
 
@@ -19,7 +20,7 @@ load_dotenv()
 API_KEY = os.getenv("SECRET_KEY")
 
 
-agendamentos_router = APIRouter(prefix='/agendamentos_whatssap',tags=['Agendamentos_Whatssap'])
+agendamentos_router = APIRouter(prefix='/agendamentos', tags=['Agendamentos'])
 
 
 dias_map = {
@@ -32,7 +33,11 @@ dias_map = {
     6: DiasAtendimento.domingo
 }
 
-@agendamentos_router.post("/criar_agendamento")
+# ====================================================================
+# ROTAS WHATSAPP (INTEGRAÇÃO)
+# ====================================================================
+
+@agendamentos_router.post("/criar")
 async def criar_agendamento_endpoint(
     agendamento: AgendamentoCreate,
     db: Session = Depends(get_db),
@@ -187,7 +192,7 @@ async def criar_agendamento_endpoint(
 
 
 
-@agendamentos_router.post("/cancelar_agendamento")
+@agendamentos_router.post("/cancelar")
 async def cancelar_agendamento(telefone: str, db: Session = Depends(get_db), empresa: Empresa = Depends(verificar_api_key)):
     """
     Cancela o último agendamento ativo vinculado ao número de telefone fornecido.
@@ -222,7 +227,7 @@ async def cancelar_agendamento(telefone: str, db: Session = Depends(get_db), emp
 
 
 #rota de concluir horario agendado
-@agendamentos_router.post("/concluir_agendamento")
+@agendamentos_router.post("/concluir")
 async def concluir_agendamento(telefone: str, db: Session = Depends(get_db), empresa: Empresa = Depends(verificar_api_key)):
     """
     Marca o último agendamento do cliente como concluído.
@@ -353,3 +358,88 @@ async def seus_agendamentos(telefone: str, db: Session = Depends(get_db), empres
             for agendamento in agendamentos
         ]
     }
+
+# ====================================================================
+# ROTAS ADMIN (GERENCIAMENTO)
+# ====================================================================
+
+@agendamentos_router.get("/empresa/{empresa_id}/listar")
+async def listar_agendamentos_admin(
+    empresa_id: int,
+    data: Optional[date] = None,
+    profissional_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    acesso: dict = Depends(verificar_acesso_empresa(nivel_minimo=1))
+):
+    """
+    Lista agendamentos de uma empresa com filtros para administração.
+    Nível mínimo: colaborador (1).
+    """
+    query = db.query(Agendamento).filter(Agendamento.empresa_id == empresa_id)
+    
+    if data:
+        query = query.filter(Agendamento.data_servico == data)
+    
+    if profissional_id:
+        query = query.filter(Agendamento.profissional_id == profissional_id)
+        
+    agendamentos = query.order_by(Agendamento.data_servico.desc(), Agendamento.hora_inicio.desc()).all()
+    
+    return [
+        {
+            "id": a.id,
+            "nome_cliente": a.nome_cliente,
+            "telefone_cliente": a.telefone_cliente,
+            "data_servico": a.data_servico,
+            "hora_inicio": a.hora_inicio.strftime("%H:%M") if a.hora_inicio else None,
+            "hora_fim": a.hora_fim.strftime("%H:%M") if a.hora_fim else None,
+            "status": a.status,
+            "servico": a.nome_servico,
+            "profissional": a.profissional.nome if a.profissional else "Não atribuído"
+        }
+        for a in agendamentos
+    ]
+
+@agendamentos_router.post("/empresa/{empresa_id}/{agendamento_id}/cancelar_admin")
+async def cancelar_agendamento_admin(
+    empresa_id: int,
+    agendamento_id: int,
+    db: Session = Depends(get_db),
+    acesso: dict = Depends(verificar_acesso_empresa(nivel_minimo=1))
+):
+    """
+    Cancela um agendamento via painel administrativo.
+    """
+    agendamento = db.query(Agendamento).filter(
+        Agendamento.id == agendamento_id,
+        Agendamento.empresa_id == empresa_id
+    ).first()
+    
+    if not agendamento:
+        raise HTTPException(status_code=404, detail="Agendamento não encontrado")
+        
+    agendamento.status = StatusAgendamento.cancelado
+    db.commit()
+    return {"msg": "Agendamento cancelado com sucesso"}
+
+@agendamentos_router.post("/empresa/{empresa_id}/{agendamento_id}/concluir_admin")
+async def concluir_agendamento_admin(
+    empresa_id: int,
+    agendamento_id: int,
+    db: Session = Depends(get_db),
+    acesso: dict = Depends(verificar_acesso_empresa(nivel_minimo=1))
+):
+    """
+    Conclui um agendamento via painel administrativo.
+    """
+    agendamento = db.query(Agendamento).filter(
+        Agendamento.id == agendamento_id,
+        Agendamento.empresa_id == empresa_id
+    ).first()
+    
+    if not agendamento:
+        raise HTTPException(status_code=404, detail="Agendamento não encontrado")
+        
+    agendamento.status = StatusAgendamento.concluido
+    db.commit()
+    return {"msg": "Agendamento concluído com sucesso"}

@@ -5,7 +5,7 @@ Uma plataforma SaaS de agendamentos automatizados via WhatsApp usando **Agente d
 
 Diferente de sistemas convencionais (como n8n), nosso sistema conta com um **Agente de IA** próprio, focado em entender as solicitações do cliente via WhatsApp, em linguagem natural, verificando disponibilidade e realizando agendamentos, remarcações e cancelamentos através da nossa API.
 
-Além disso, a plataforma inclui uma interface **Frontend (Site SaaS)**, onde empreendedores poderão se cadastrar, registrar suas empresas e ter acesso à sua própria integração com o Agente de IA de WhatsApp. Este painel administrativo ganhará no futuro funcionalidades completas de **Dashboard** para acompanhamento de métricas.
+Além disso, a plataforma inclui uma interface **Frontend (Site SaaS)**, onde empreendedores poderão se cadastrar, registrar suas empresas e ter acesso à sua própria integração com o Agente de IA de WhatsApp. O painel administrativo já conta com rotas de **Dashboard** no backend para acompanhamento completo de métricas (taxa de ocupação, mapas de calor, perfil de cancelamentos, etc).
 
 O Agente de IA também se encarregará de sincronizar todos os agendamentos registrados no banco de dados e repassados à API, integrando os dados diretamente com o **Google Sheets** e marcando horários no **Google Calendar**.
 

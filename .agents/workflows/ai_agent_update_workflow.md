@@ -15,7 +15,7 @@ O Agente realiza a ponte entre o WhatsApp e a confirmação em banco.
 1. Interpreta linguagem natural.
 2. Encontra a vaga livre no banco de dados através da rota `/ver_horarios_disponiveis`.
 3. Tenta processar a reserva enviando na rota `/criar_agendamento`.
-4. Apenas DEPOIS DE VALIDADO NO BACKEND (Retorno HTTP 200/201), ele invoca a API do Google Sheets e marca o horário no Google Calendar.
+4. Apenas DEPOIS DE VALIDADO NO BACKEND (Retorno HTTP 200/201), ele invoca a API do Google Sheets e marca o horário no Google Calendar e numa planilha excel.
 - **Nunca autorize o agente a marcar no Sheets antes da API do PostgreSQL confirmar a vaga.**
 
 ## 3. Comandos e Testes Locais

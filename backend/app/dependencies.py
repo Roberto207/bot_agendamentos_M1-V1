@@ -67,17 +67,13 @@ def verificar_token(token: str = Depends(oauth2_schema), db: Session = Depends(g
 # Dependência simples de autenticação
 async def verificar_api_key(
     credentials = Security(security),
-    telefone_empresa: str = Header(...),
     db: Session = Depends(get_db)
 ):
 
     api_key = credentials.credentials
     
-    
-        
     empresa = db.query(Empresa).filter(
-        Empresa.api_key == api_key,
-        Empresa.telefone == telefone_empresa
+        Empresa.api_key == api_key
     ).first()
 
     if not empresa:

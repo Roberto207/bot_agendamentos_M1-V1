@@ -37,6 +37,29 @@ dias_map = {
 # ROTAS WHATSAPP (INTEGRAÇÃO)
 # ====================================================================
 
+@agendamentos_router.get("/servicos_disponiveis")
+async def servicos_disponiveis(
+    db: Session = Depends(get_db),
+    empresa: Empresa = Depends(verificar_api_key)
+):
+    """
+    Retorna a lista de serviços para integração via API_KEY (ex: Agente IA)
+    """
+    servicos = db.query(Servicos).filter(Servicos.empresa_id == empresa.id, Servicos.ativo == True).all()
+    resultado = []
+    for s in servicos:
+        profs = [{"id": p.id, "nome": p.nome} for p in s.profissionais if p.ativo]
+        resultado.append({
+            "id": s.id,
+            "nome": s.nome,
+            "duracao": s.duracao,
+            "preco": s.preco,
+            "descricao": s.descricao,
+            "profissionais": profs
+        })
+    return {"servicos": resultado}
+
+
 @agendamentos_router.post("/criar")
 async def criar_agendamento_endpoint(
     agendamento: AgendamentoCreate,

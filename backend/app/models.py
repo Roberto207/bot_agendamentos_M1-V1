@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Time, Enum, TIMESTAMP,ForeignKey,Boolean,DECIMAL,Table,UniqueConstraint
+from sqlalchemy import Column, Integer, String, Date, Time, Enum, TIMESTAMP, ForeignKey, Boolean, DECIMAL, Table, UniqueConstraint, Text
 from sqlalchemy.orm import relationship
 from .database import Base
 import enum
@@ -39,6 +39,7 @@ class Empresa(Base):
     
     ramo_empresa = Column(String(255), nullable=False)  # Ex: "Barbearia", "Salão de Beleza"
     endereco_empresa = Column(String(255), nullable=True)
+    descricao = Column(Text, nullable=True)  # Descrição da empresa para o agente IA apresentar ao cliente via WhatsApp
     
     agendamentos = relationship("Agendamento", back_populates="empresa")
 

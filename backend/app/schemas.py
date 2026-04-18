@@ -53,8 +53,8 @@ class EmpresaCreate(BaseModel):
     telefone: str
     ramo_empresa: str
     endereco_empresa: Optional[str] = None
+    descricao: Optional[str] = None  # Descrição da empresa exibida pelo agente ao cliente
     horarios: List[HorarioFuncionamentoCreate] = []
-    #horarios: List[HorarioFuncionamentoCreate]
     
 
 class AgendamentoCreate(BaseModel):
@@ -159,6 +159,7 @@ class EmpresaUpdate(BaseModel):
     telefone: Optional[str] = None
     ramo_empresa: Optional[str] = None
     endereco_empresa: Optional[str] = None
+    descricao: Optional[str] = None  # Atualiza a descrição da empresa
     horarios: Optional[List[HorarioFuncionamentoCreate]] = None  # adicionar/substituir horários
 
 
@@ -168,6 +169,7 @@ class EmpresaOut(BaseModel):
     telefone: str | None
     ramo_empresa: str | None
     endereco_empresa: str | None
+    descricao: Optional[str] = None  # Descrição exibida pelo agente IA
     criado_em: Optional[datetime] = None
     
     class Config:
@@ -280,6 +282,7 @@ class EmpresaDetailOut(BaseModel):
     telefone: str
     ramo_empresa: str
     endereco_empresa: Optional[str] = None
+    descricao: Optional[str] = None  # Descrição da empresa
     criado_em: Optional[datetime] = None
     horarios: List[HorarioOut] = []
     servicos: List[ServicosOut] = []

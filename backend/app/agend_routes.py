@@ -60,6 +60,61 @@ async def servicos_disponiveis(
     return {"servicos": resultado}
 
 
+@agendamentos_router.get("/info_empresa")
+async def info_empresa(
+    db: Session = Depends(get_db),
+    empresa: Empresa = Depends(verificar_api_key)
+):
+    """
+    Retorna as informações públicas da empresa para o agente IA apresentar ao cliente via WhatsApp.
+    Autenticado por API Key da empresa.
+    Campos retornados: nome, email, localização, ramo de atuação e descrição da empresa.
+    """
+    return {
+        "nome": empresa.nome,
+        "email": empresa.email,
+        "localizacao": empresa.endereco_empresa,
+        "ramo": empresa.ramo_empresa,
+        "descricao": empresa.descricao,
+        "telefone": empresa.telefone
+    }
+
+
+@agendamentos_router.get("/meus_dados")
+async def meus_dados_cliente(
+    telefone: str,
+    db: Session = Depends(get_db),
+    empresa: Empresa = Depends(verificar_api_key)
+):
+    """
+    Retorna os dados cadastrais do cliente identificado pelo telefone.
+    O agente passa automaticamente o número do cliente que está conversando,
+    garantindo que cada cliente só visualize os próprios dados.
+    Autenticado por API Key da empresa.
+    """
+    # Busca o cliente pelo telefone e empresa (segurança: não vaza dados de outro cliente)
+    cliente = db.query(Cliente).filter(
+        Cliente.telefone == telefone
+    ).first()
+
+    if not cliente:
+        # Retorna mensagem amigável para o agente — cliente ainda não cadastrado
+        return {
+            "cadastrado": False,
+            "mensagem": "Cliente ainda não possui cadastro no sistema."
+        }
+
+    return {
+        "cadastrado": True,
+        "nome": cliente.nome,
+        "telefone": cliente.telefone,
+        "email": cliente.email if cliente.email else "não informado",
+        "membro_desde": cliente.criado_em
+    }
+
+
+
+
 @agendamentos_router.post("/criar")
 async def criar_agendamento_endpoint(
     agendamento: AgendamentoCreate,

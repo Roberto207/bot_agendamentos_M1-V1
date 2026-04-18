@@ -55,6 +55,7 @@ async def cadastrar_empresa(
         telefone=empresa.telefone,
         ramo_empresa=empresa.ramo_empresa,
         endereco_empresa=empresa.endereco_empresa,
+        descricao=empresa.descricao,  # Descrição da empresa fornecida no cadastro
         api_key=api_key,
         id_usuario_criador=usuario.id
     )
@@ -122,8 +123,9 @@ async def listar_empresas(db: Session = Depends(get_db), usuario: Usuario = Depe
             "cnpj": e.cnpj,
             "email": e.email,
             "telefone": e.telefone,
-            "ramo": e.ramo_empresa, # Mapeando para 'ramo' conforme o frontend espera
+            "ramo": e.ramo_empresa,       # Mapeando para 'ramo' conforme o frontend espera
             "endereco": e.endereco_empresa, # Mapeando para 'endereco'
+            "descricao": e.descricao,       # Descrição da empresa
             "criado_em": e.criado_em
         }
         for e in empresas
@@ -263,6 +265,7 @@ async def visualizar_empresa(
         "telefone": empresa.telefone,
         "ramo_empresa": empresa.ramo_empresa,
         "endereco_empresa": empresa.endereco_empresa,
+        "descricao": empresa.descricao,  # Descrição da empresa
         "criado_em": empresa.criado_em,
         "horarios": horarios,
         "servicos": servicos_out,

@@ -1,6 +1,7 @@
 import os
 import json
 import httpx
+import re
 from fastapi import FastAPI, HTTPException, Request
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
@@ -10,6 +11,16 @@ from typing import Dict, List, Optional
 load_dotenv(".env.orchestrator")
 
 app = FastAPI(title="Agente IA Orquestrador WhatsApp")
+
+def clean_llm_response(text: str) -> str:
+    """Remove tool schemas and JSON code blocks that the LLM might leak into the message."""
+    if not text: 
+        return ""
+    # Remove markdown code blocks
+    text = re.sub(r'```(?:json)?\s*[\s\S]*?\s*```', '', text)
+    # Remove raw array outputs representing tools like [ { "name": "...", "parameters": ... } ]
+    text = re.sub(r'\[\s*\{\s*"name"\s*:[\s\S]*?\}\s*\]', '', text)
+    return text.strip()
 
 import logging
 
@@ -169,20 +180,6 @@ tools = [
     {
         "type": "function",
         "function": {
-            "name": "sincronizar_google",
-            "description": "Ferramenta a ser chamada impreterivelmente sempre após um agir da criação de agendamento confirmado na API.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "agendamento_id": {"type": "string", "description": "O ID do agendamento q retornou no post criar_agendamento"}
-                },
-                "required": ["agendamento_id"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
             "name": "ver_info_empresa",
             "description": "Busca as informações públicas da empresa (nome, email, endereço, ramo de atuação e descrição). Use esta ferramenta para apresentar a empresa ao cliente quando ele solicitar informações sobre o local.",
             "parameters": {"type": "object", "properties": {}}
@@ -232,12 +229,6 @@ async def execute_tool(name: str, args: dict, api_key: str, telefone: str) -> st
             elif name == "cancelar_agendamento":
                 resp = await http_client.post(f"{API_BASE_URL}/agendamentos/cancelar?telefone={telefone}", headers=headers)
                 return resp.text
-                
-            elif name == "sincronizar_google":
-                # Mock integration until actual Google APIs are placed
-                agend_id = args.get("agendamento_id")
-                return json.dumps({"status": "success", "msg": f"O Agendamento {agend_id} foi adicionado no Google Calendar e Sheets internamente."})
-                
             elif name == "ver_info_empresa":
                 resp = await http_client.get(f"{API_BASE_URL}/agendamentos/info_empresa", headers=headers)
                 return resp.text
@@ -395,7 +386,7 @@ ATENÇÃO CRÍTICA (REGRAS DE CONVERSAÇÃO):
 2. Você pode usar a ferramenta `ver_info_empresa` para conhecer o local onde você trabalha e repassar essas infos ao cliente se ele perguntar.
 3. Você tem acesso à ferramenta `ver_dados_cliente`. Se o cliente quiser saber se tem cadastro ou quais seus dados, use essa ferramenta.
 4. NUNCA EXIJA MÚLTIPLAS CONFIRMAÇÕES. Se você resumiu o agendamento e o cliente respondeu "sim", "pode marcar", "ok" ou similar, CHAME IMEDIATAMENTE a ferramenta `criar_agendamento` sem perguntar mais nada.
-5. NUNCA ENVIE JSON OU SCHEMAS PARA O CLIENTE. Quando usar ferramentas (como `sincronizar_google`), faça isso de forma invisível. Suas mensagens devem ser 100% em texto natural e amigável (ex: "Agendamento criado com sucesso! Você tem um agendamento na quarta-feira... Vou sincronizar com nossa agenda.").
+5. NUNCA ENVIE JSON OU SCHEMAS PARA O CLIENTE. Suas mensagens devem ser 100% em texto natural e amigável (ex: "Agendamento criado com sucesso! Você tem um agendamento na quarta-feira...").
 
 PASSO A PASSO DA CONVERSA (Execute passos condensados se possível):
 1. Identificação: Pergunte o nome do cliente.
@@ -403,7 +394,7 @@ PASSO A PASSO DA CONVERSA (Execute passos condensados se possível):
 3. Data/Hora: Chame `ver_horarios_ocupados` para checar disponibilidade de vaga para a data do cliente. Se vier 'horarios_ocupados', você deve oferecer os horários restantes da loja.
 4. Confirmação ÚNICA: Faça um resumo das informações e peça confirmação.
 5. Agendamento: Assim que o cliente confirmar, chame `criar_agendamento` imediatamente.
-6. Conclusão: Avise o cliente usando LINGUAGEM NATURAL e, na mesma resposta, chame `sincronizar_google` silenciosamente.
+6. Conclusão: Avise o cliente usando LINGUAGEM NATURAL de que o agendamento foi efetuado.
 """
         memory[from_number] = [{"role": "system", "content": prompt}]
         
@@ -460,6 +451,7 @@ PASSO A PASSO DA CONVERSA (Execute passos condensados se possível):
                 messages=memory[from_number]
             )
             final_msg = second_response.choices[0].message.content
+            final_msg = clean_llm_response(final_msg)
             memory[from_number].append({"role": "assistant", "content": final_msg})
             # Envia a resposta de volta via Meta Cloud API
             await send_whatsapp_reply(destinatario=from_number, mensagem=final_msg)
@@ -467,6 +459,7 @@ PASSO A PASSO DA CONVERSA (Execute passos condensados se possível):
             
         else:
             final_msg = response_message.content
+            final_msg = clean_llm_response(final_msg)
             memory[from_number].append({"role": "assistant", "content": final_msg})
             # Envia a resposta de volta via Meta Cloud API
             await send_whatsapp_reply(destinatario=from_number, mensagem=final_msg)

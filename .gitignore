@@ -3,3 +3,5 @@ backend/querys
 .env
 explicacoes_projeto.txt
 agente_orquestrador/.env.orchestrator
+.agents/
+.vscode/

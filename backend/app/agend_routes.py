@@ -241,6 +241,20 @@ async def criar_agendamento_endpoint(
         db.commit()
         db.refresh(cliente)
 
+    # --- Verificar conflito de horário para o CLIENTE ---
+    conflito_cliente = db.query(Agendamento).filter(
+        Agendamento.telefone_cliente == agendamento.telefone_cliente,
+        Agendamento.data_servico == agendamento.data_servico,
+        Agendamento.hora_inicio < hora_fim,
+        Agendamento.hora_fim > hora_inicio,
+        Agendamento.status == StatusAgendamento.confirmado
+    ).first()
+    if conflito_cliente:
+        raise HTTPException(
+            400,
+            detail="Você já possui um agendamento marcado para este mesmo horário."
+        )
+
     # --- Criar agendamento ---
     novo = Agendamento(
         empresa_id=empresa.id,
